@@ -40,5 +40,5 @@ async def async_hashc_file(file_path: str, hash_type: HashCalculateType = "sha25
 
         return hash_obj.hexdigest()
     
-    except Exception as e:
+    except Exception:
         Logger.exception(f"Cannot calculate the hash: \"{file_path}\"")

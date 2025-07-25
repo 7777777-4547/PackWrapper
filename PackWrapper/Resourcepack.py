@@ -1,5 +1,6 @@
 from .PathEnum import PackWrapper
 from .Logger import Logger
+from .StatusChecker import check_configure_status
 
 from typing import Literal, TypeAlias
 from pathlib import Path
@@ -24,6 +25,8 @@ class Resourcepack():
                  verfmt: int | tuple[int,int] | list[int], 
                  icon_path: str | Path | None = None
                  ):
+        
+        check_configure_status()
         
         self.name = name
         self.description = description
@@ -56,6 +59,7 @@ class Resourcepack():
         Logger.info(f"Starting export: \"{export_name}\"")
         
         cache_dir = PackWrapper.CACHE / self.source_dir.name
+        cache_dir.mkdir(parents=True, exist_ok=True)
         Logger.debug(f"The resourcepack cache directory: \"{cache_dir}\"")
         export_path = PackWrapper.EXPORT / f"{export_name}.zip"
         Logger.debug(f"The export final destination path: \"{export_path}\"")
@@ -78,8 +82,8 @@ class Resourcepack():
             Logger.exception(f"Cannot copy the files: {self.source_dir}")
         
         if self.icon_path is not None:
-            try: shutil.copy2(self.icon_path, cache_dir / self.icon_path.name)
-            except Exception: Logger.warning(f"[Skip] Cannot copy the icon: \"{self.icon_path}\" to \"{cache_dir / self.icon_path.name}\"")
+            try: shutil.copy2(self.icon_path, cache_dir / "pack.png")
+            except Exception: Logger.warning(f"Cannot copy the icon: \"{self.icon_path}\" to \"{cache_dir / self.icon_path.name}\"")
 
         
         # Dump resourcepack mcmeta
@@ -128,6 +132,9 @@ class ResourcepackAuto():
     compresslevels: TypeAlias = Literal[0,1,2,3,4,5,6,7,8,9]
     
     def __init__(self, properties: dict):
+        
+        check_configure_status()
+        
         self.properties = properties
         try:
             self.name = properties["name"]

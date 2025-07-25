@@ -1,0 +1,7 @@
+{
+    "name": "examplepack-2",
+    "verfmt": [0,99],
+    "description":"test",
+    "source_dir": "resourcepacktest",
+    "icon_path": "icon.png"
+}

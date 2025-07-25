@@ -47,10 +47,7 @@ class Logger:
                format = "[%(asctime)s][%(threadName)s/%(levelname)s]: %(message)s", 
                datefmt = "%Y/%m/%d|%H:%M:%S"
                ):
-
-        
-        
-        
+                
         filename = PackWrapper.ROOT / filename
 
         logger = logging.getLogger()
@@ -74,7 +71,7 @@ class Logger:
         information. If the logger has no handlers, basicConfig() is called to add
         a console handler with a pre-defined format.
         
-        The difference: include `raise` to faster end the progarm if the program have the error.
+        The difference: Include `raise` to faster end the progarm if the program have the error.
         '''
         
         logging.exception(msg, *args, exc_info=exc_info, **kwargs)
@@ -82,14 +79,28 @@ class Logger:
         if exc_info and isinstance(exc_info, BaseException):
             raise exc_info from None
         elif sys.exc_info()[0] is not None:
-            raise 
+            raise
     
     
+    @staticmethod
+    def _warning(msg, *args, exc_info=True, **kwargs):
+        
+        '''
+        Log a message with severity 'WARNING' on the root logger. If the logger has
+        no handlers, call basicConfig() to add a console handler with a pre-defined
+        format.
+        
+        The difference: Exception infomation will be logged.
+        '''
+
+        logging.warning(msg, *args, exc_info=exc_info, **kwargs)
+        
+   
     critical = logging.critical
     fatal = logging.fatal
     error = logging.error
     exception = _exception
-    warning = logging.warning
+    warning = _warning
     warn = logging.warn
     info = logging.info
     debug = logging.debug

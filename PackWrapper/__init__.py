@@ -1,4 +1,6 @@
 from .Logger import Logger, LoggerType
+from . import StatusChecker
+
 from pathlib import Path
 
 packwrapper_version = "Dev"
@@ -7,10 +9,17 @@ packwrapper_version = "Dev"
 Using `PackWrapper.config()` firstly to continuce the next function use.
 """
 
-pack_properties = {}
+PACK_PROPERTIES = {}
 
 # PackWrapper Configure
 def config(properties: str | Path, debug_mode: bool = False):
+    
+    global PACK_PROPERTIES
+    
+    if StatusChecker.get_configure_status() is False:
+        StatusChecker.change_configure_status(True)
+    else:
+        Logger.exception("PackWrapper is already configured. Please don't configure it again.")
     
     # Configure Logger
     Logger.config(filename="packwrapper_debug.log" if debug_mode else "packwrapper.log", 
@@ -21,14 +30,14 @@ def config(properties: str | Path, debug_mode: bool = False):
     Logger.info(f"PackWrapper[{packwrapper_version}]")
     
     # Properties Read
-    global pack_properties
     if Path(properties).is_file():
-        pack_properties = PropertiesManager.single_properties_read(properties)
+        PACK_PROPERTIES = PropertiesManager.single_properties_read(properties)
     else:
-        pack_properties = PropertiesManager.multiple_properties_read(properties)
+        PACK_PROPERTIES = PropertiesManager.multiple_properties_read(properties)
+        
     
 def get_properties():
-    return pack_properties
+    return PACK_PROPERTIES
 
 
 from .Resourcepack import Resourcepack, ResourcepackAuto
