@@ -3,6 +3,7 @@ from .Logger import Logger
 from .StatusChecker import check_configure_status
 
 from typing import Literal, TypeAlias
+from string import Template
 from pathlib import Path
 import shutil
 import json
@@ -147,6 +148,11 @@ class ResourcepackAuto():
             self.icon_path = properties["icon_path"]
         except Exception: 
             self.icon_path = None
+            
+        try:
+            self.export_name = Template(properties["export_name"]).substitute(properties)
+        except Exception: 
+            self.export_name = None
         
         if not isinstance(self.verfmt, (int, list)):
             self.verfmt = list(self.verfmt)
@@ -164,7 +170,9 @@ class ResourcepackAuto():
             }
         }
     
-    def export(self, compresslevel: compresslevels = 5, export_name: str | None = None):
+    def export(self, compresslevel: compresslevels = 5):
+        
+        export_name = self.export_name
         
         '''
         The function to export the resourcepack, compresslevel is the level of compression, 1-9, 5 is the default.
@@ -173,4 +181,4 @@ class ResourcepackAuto():
         
         Resourcepack(
             self.source_dir, self.name, self.description, self.verfmt, self.icon_path
-        ).export(compresslevel, export_name)
+        ).export(compresslevel, export_name = export_name)

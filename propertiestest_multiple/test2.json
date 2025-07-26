@@ -1,7 +1,10 @@
 {
     "name": "examplepack-2",
+    "version": "1.0.0",
     "verfmt": [0,99],
     "description":"test",
     "source_dir": "resourcepacktest",
-    "icon_path": "icon.png"
+    "icon_path": "resourcepacktest_icon.png",
+
+    "export_name": "${name}_${version}"
 }
