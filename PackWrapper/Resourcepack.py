@@ -127,7 +127,8 @@ class ResourcepackAuto():
     if you want to use it you need to use the `PackWrapper.config()` function firstly, 
     and must provide the right properties contect(not the file path) to use it.
     
-    The properties must provide these keys: `name`, `verfmt`, `description`, `source_dir`
+    The properties must provide these keys: `name`, `verfmt`, `description`, `source_dir`.
+    `icon_path` and `export_name` are optional.
     '''
     
     compresslevels: TypeAlias = Literal[0,1,2,3,4,5,6,7,8,9]
