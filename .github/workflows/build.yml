@@ -1,0 +1,38 @@
+name: build-nightly
+
+on: 
+  push:
+    branches:
+      - "main"
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Git Repository
+        uses: actions/checkout@v3
+      - name: Get Time
+        run: |
+          CURRENT_DATE=$(date +%Y%m%d%H%M%S)
+          echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
+      - name: Bump PackWrapper version
+        uses: jacobtomlinson/gha-find-replace@0.1.2
+        with:
+          include: PackWrapper/__init__.py
+          find: 'packwrapper_version = "Dev"'
+          replace: 'packwrapper_version = "N${{ env.CURRENT_DATE }}"'
+      - name: Archive PackWrapper
+        uses: thedoctor0/zip-release@main
+        with:
+          path: ./PackWrapper
+          filename: "PackWrapper-N${{ env.CURRENT_DATE }}.zip"
+          exclusions: "*.pyc"
+      - name: Release Artifacts
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+            title: "PackWrapper N${{ env.CURRENT_DATE }}"
+            automatic_release_tag: "nightly"
+            repo_token: "${{ secrets.GITHUB_TOKEN }}"
+            files: "PackWrapper-N${{ env.CURRENT_DATE }}.zip"
+            prerelease: true
