@@ -2,9 +2,10 @@ from .StatusChecker import check_configure_status
 from . import Dependency
 from .PathEnum import PackWrapper
 
+from warnings import deprecated
 
 
-# TODO: Not done yet.
+@deprecated("Not done yet.")
 class RunClient:
     
     game_dir = PackWrapper.GAME

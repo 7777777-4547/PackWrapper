@@ -24,7 +24,8 @@ class Resourcepack():
                  name: str,
                  description: str, 
                  verfmt: int | tuple[int,int] | list[int], 
-                 icon_path: str | Path | None = None
+                 icon_path: str | Path | None = None,
+                 **extra_properties
                  ):
         
         check_configure_status()
@@ -32,8 +33,16 @@ class Resourcepack():
         self.name = name
         self.description = description
         self.verfmt = verfmt if isinstance(verfmt, (int, list)) else list(verfmt)
-        self.icon_path = icon_path if isinstance(icon_path, Path) else (Path(icon_path) if icon_path is not None else None)
-        self.source_dir = source_dir if isinstance(source_dir, Path) else Path(source_dir)
+        self.icon_path = Path(icon_path) if icon_path is not None else None
+        self.source_dir = Path(source_dir)
+        
+        self.properties = {
+            "name": name,
+            "description": description,
+            "verfmt": verfmt,
+            "source_dir": str(source_dir),
+            **extra_properties
+        }
         
         self.pack_mcmeta = {
             "pack":{
@@ -55,8 +64,17 @@ class Resourcepack():
         The function to export the resourcepack, compresslevel is the level of compression, 1-9, 5 is the default.
         `export_name` is optional, if not specified, the name of the resourcepack will be used.
         '''
+        properties = self.properties
         
-        export_name = self.name if export_name is None else export_name
+        if export_name is None:
+            export_name = self.name
+        else:
+            try:
+                export_name = Template(properties["export_name"]).substitute(properties)
+            except Exception:
+                Logger.error(f"Invalid export_name template \"{export_name}\", return to the original string.")
+                export_name = export_name
+        
         Logger.info(f"Starting export: \"{export_name}\"")
         
         cache_dir = PackWrapper.CACHE / self.source_dir.name
@@ -146,15 +164,17 @@ class ResourcepackAuto():
         except Exception: Logger.exception("Cannot read the properties")
         
         try:
+            self.export_name = properties["export_name"]
+            self.extra_properties = dict(properties.items() - {"name", "description", "verfmt", "source_dir", "export_name"})
+        except Exception:
+            self.export_name = None
+            self.extra_properties = dict(properties.items() - {"name", "description", "verfmt", "source_dir"})
+        
+        try:
             self.icon_path = properties["icon_path"]
         except Exception: 
             self.icon_path = None
-            
-        try:
-            self.export_name = Template(properties["export_name"]).substitute(properties)
-        except Exception: 
-            self.export_name = None
-        
+                    
         if not isinstance(self.verfmt, (int, list)):
             self.verfmt = list(self.verfmt)
         
@@ -181,5 +201,5 @@ class ResourcepackAuto():
         '''
         
         Resourcepack(
-            self.source_dir, self.name, self.description, self.verfmt, self.icon_path
+            self.source_dir, self.name, self.description, self.verfmt, self.icon_path, **self.extra_properties
         ).export(compresslevel, export_name = export_name)
