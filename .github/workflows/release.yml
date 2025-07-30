@@ -1,0 +1,36 @@
+name: build-release
+
+on: 
+  push:
+    tags:
+      - 'v*'
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Get version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+      - name: Bump PackWrapper version
+        uses: jacobtomlinson/gha-find-replace@0.1.2
+        with:
+          include: PackWrapper/__init__.py
+          find: 'packwrapper_version = "Dev"'
+          replace: 'packwrapper_version = "${{ steps.get_version.outputs.VERSION }}"'
+      - name: Archive PackWrapper
+        uses: thedoctor0/zip-release@main
+        with:
+          path: ./PackWrapper
+          filename: "PackWrapper-${{ steps.get_version.outputs.VERSION }}.zip"
+          exclusions: "*.pyc"
+      - name: Upload Release
+        uses: AButler/upload-release-assets@v3.0.1
+        with:
+          files: 'PackWrapper-${{ steps.get_version.outputs.VERSION }}.zip'
+          release-tag: ${{ steps.get_version.outputs.VERSION }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
