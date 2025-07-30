@@ -26,11 +26,11 @@ jobs:
         uses: thedoctor0/zip-release@main
         with:
           path: ./PackWrapper
-          filename: "PackWrapper-${{ steps.get_version.outputs.VERSION }}.zip"
+          filename: "PackWrapper_${{ steps.get_version.outputs.VERSION }}.zip"
           exclusions: "*.pyc"
       - name: Upload Release
         uses: AButler/upload-release-assets@v3.0.1
         with:
-          files: 'PackWrapper-${{ steps.get_version.outputs.VERSION }}.zip'
+          files: 'PackWrapper_${{ steps.get_version.outputs.VERSION }}.zip'
           release-tag: ${{ steps.get_version.outputs.VERSION }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}

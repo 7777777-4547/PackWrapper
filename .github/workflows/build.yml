@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Git Repository
         uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         uses: thedoctor0/zip-release@main
         with:
           path: ./PackWrapper
-          filename: "PackWrapper-N${{ env.CURRENT_DATE }}.zip"
+          filename: "PackWrapper_N${{ env.CURRENT_DATE }}.zip"
           exclusions: "*.pyc"
       - name: Release Artifacts
         uses: marvinpinto/action-automatic-releases@latest
@@ -35,5 +35,5 @@ jobs:
             title: "PackWrapper N${{ env.CURRENT_DATE }}"
             automatic_release_tag: "nightly"
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
-            files: "PackWrapper-N${{ env.CURRENT_DATE }}.zip"
+            files: "PackWrapper_N${{ env.CURRENT_DATE }}.zip"
             prerelease: true
