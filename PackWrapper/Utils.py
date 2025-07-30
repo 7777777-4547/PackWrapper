@@ -19,7 +19,7 @@ class Network:
 
     @staticmethod
     def download_file(url, path):
-        with httpx.Client() as client:
+        with httpx.Client(follow_redirects=True) as client:
             with client.stream("GET", url) as response:
                 
                 try:
