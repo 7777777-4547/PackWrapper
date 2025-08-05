@@ -31,7 +31,6 @@ class Resourcepack():
         check_configure_status()
         
         self.name = name
-        self.description = description
         self.verfmt = verfmt if isinstance(verfmt, (int, list)) else list(verfmt)
         self.icon_path = Path(icon_path) if icon_path is not None else None
         self.source_dir = Path(source_dir)
@@ -44,16 +43,20 @@ class Resourcepack():
             **extra_properties
         }
         
+        self.description = Template(description).substitute(self.properties)
+        
+        self.properties["description"] = self.description
+        
         self.pack_mcmeta = {
             "pack":{
                 "pack_format": verfmt,
-                "description": description
+                "description": self.description
             }
         } if isinstance(verfmt, int) else {
             "pack":{
                 "pack_format": verfmt[0],
                 "supported_formats": verfmt,
-                "description": description
+                "description": self.description
             }
         }
     
