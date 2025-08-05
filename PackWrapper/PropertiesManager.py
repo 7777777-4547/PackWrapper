@@ -52,5 +52,5 @@ def multiple_properties_read(directory_path: str | Path, file_ext: str = "json")
                 except Exception:
                     Logger.exception(f"Cannot read the properties: \"{file_path}\"")
                 
-        Logger.debug(json.dumps(properties, indent=4))
+        Logger.debug(json.dumps(properties, indent=4, ensure_ascii=False))
         return properties
