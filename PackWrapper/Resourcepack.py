@@ -73,7 +73,7 @@ class Resourcepack():
             export_name = self.name
         else:
             try:
-                export_name = Template(properties["export_name"]).substitute(properties)
+                export_name = Template(export_name).substitute(properties)
             except Exception:
                 Logger.error(f"Invalid export_name template \"{export_name}\", return to the original string.")
                 export_name = export_name
@@ -167,16 +167,19 @@ class ResourcepackAuto():
         except Exception: Logger.exception("Cannot read the properties")
         
         try:
-            self.export_name = properties["export_name"]
-            self.extra_properties = dict(properties.items() - {"name", "description", "verfmt", "source_dir", "export_name"})
-        except Exception:
-            self.export_name = None
-            self.extra_properties = dict(properties.items() - {"name", "description", "verfmt", "source_dir"})
-        
-        try:
             self.icon_path = properties["icon_path"]
         except Exception: 
             self.icon_path = None
+            
+        try:
+            self.export_name = properties["export_name"]
+            main_properties = {"name", "description", "verfmt", "source_dir", "export_name", "icon_path"}
+        except KeyError:
+            self.export_name = None
+            main_properties = {"name", "description", "verfmt", "source_dir", "icon_path"}
+        
+        self.extra_properties = {k: v for k, v in properties.items() if k not in main_properties}
+        
                     
         if not isinstance(self.verfmt, (int, list)):
             self.verfmt = list(self.verfmt)

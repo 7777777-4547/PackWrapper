@@ -1,6 +1,6 @@
-from enum import IntEnum
 from .PathEnum import PackWrapper
 
+from enum import IntEnum
 import logging
 import sys
 

@@ -1,9 +1,10 @@
 from .Logger import Logger
 
+from typing import Literal, TypeAlias
 import hashlib
 import asyncio
+
 import aiofiles
-from typing import Literal, TypeAlias
 
 HashCalculateType: TypeAlias = Literal[
     'md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512',

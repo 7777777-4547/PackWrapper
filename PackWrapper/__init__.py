@@ -1,4 +1,7 @@
+from .Resourcepack import Resourcepack, ResourcepackAuto
+from .HashCalculate import hashc_file, async_hashc_file
 from .Logger import Logger, LoggerType
+from . import PropertiesManager
 from . import StatusChecker
 
 from pathlib import Path
@@ -40,9 +43,6 @@ def get_properties():
     return PACK_PROPERTIES
 
 
-from .Resourcepack import Resourcepack, ResourcepackAuto
-from . import PropertiesManager
-from .HashCalculate import hashc_file, async_hashc_file
 
 __all__ = [
     "get_properties",

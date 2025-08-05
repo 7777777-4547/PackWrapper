@@ -1,5 +1,5 @@
-from enum import Enum
 from pathlib import Path
+from enum import Enum
 
 class PathEnum(Enum):
     def __new__(cls, path: str | Path) -> 'PathEnum':

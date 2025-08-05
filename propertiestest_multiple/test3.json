@@ -2,7 +2,7 @@
     "name": "examplepack-3",
     "version": "1.0.0",
     "verfmt": 0,
-    "description":"test",
+    "description":"test_${version}",
     "source_dir": "resourcepacktest",
     "icon_path": "resourcepacktest_icon.png",
 

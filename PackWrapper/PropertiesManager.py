@@ -1,7 +1,7 @@
 from .Logger import Logger
 
-import json
 from pathlib import Path
+import json
 
 def properties_read(file_path) -> dict:
     

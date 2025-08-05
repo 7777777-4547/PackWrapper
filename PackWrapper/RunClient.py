@@ -1,6 +1,6 @@
 from .StatusChecker import check_configure_status
-from . import Dependency
 from .PathEnum import PackWrapper
+from . import Dependency
 
 from warnings import deprecated
 
