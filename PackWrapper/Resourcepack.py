@@ -1,5 +1,6 @@
 from .PathEnum import PackWrapper
 from .Logger import Logger
+from .Utils import Event
 from .StatusChecker import check_configure_status
 
 from typing import Literal, TypeAlias
@@ -29,6 +30,8 @@ class Resourcepack():
                  ):
         
         check_configure_status()
+        
+        Event.emit("resourcepack_created")
         
         self.name = name
         self.verfmt = verfmt if isinstance(verfmt, (int, list)) else list(verfmt)
@@ -79,6 +82,7 @@ class Resourcepack():
                 export_name = export_name
         
         Logger.info(f"Starting export: \"{export_name}\"")
+        Event.emit("export_start")
         
         cache_dir = PackWrapper.CACHE / self.source_dir.name
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -89,6 +93,8 @@ class Resourcepack():
         
         # Copy files
         Logger.info("Copying files...")
+        Event.emit("export_copy_start")
+        
         try:
             for file in self.source_dir.rglob("*"):
                 if file.is_file():
@@ -107,9 +113,13 @@ class Resourcepack():
             try: shutil.copy2(self.icon_path, cache_dir / "pack.png")
             except Exception: Logger.warning(f"Cannot copy the icon: \"{self.icon_path}\" to \"{cache_dir / self.icon_path.name}\"")
 
+        Event.emit("export_copy_end")
+        
         
         # Dump resourcepack mcmeta
         Logger.info("Dumping resourcepack mcmeta...")
+        Event.emit("export_dump_start")
+        
         try:
             with open(cache_dir / "pack.mcmeta", 'w', encoding='utf-8') as f:
                 json.dump(self.pack_mcmeta, f, ensure_ascii=False, indent=4)
@@ -117,10 +127,14 @@ class Resourcepack():
         except Exception:
             Logger.exception(f"Cannot dump the resourcepack mcmeta: \"{cache_dir / "pack.mcmeta"}\"")
             
+        Event.emit("export_dump_end")
+        
         
         # Packing
         Logger.info("Packing and exporting...")
         Logger.debug(f"The export path: \"{export_path}\"")
+        Event.emit("export_pack_start")
+        
         try:
             with zipfile.ZipFile(export_path, 'w', zipfile.ZIP_DEFLATED, compresslevel = compresslevel) as zipf:
                 for file in (cache_dir).rglob('*'):
@@ -130,15 +144,22 @@ class Resourcepack():
             
         except Exception:
             Logger.exception(f"Cannot export the pack: \"{export_name}\"")
+        
+        Event.emit("export_pack_end")
             
                     
         # Clean up            
         Logger.info("Cleaning up...")
+        Event.emit("export_clean_start")
+        
         try: shutil.rmtree(str(PackWrapper.CACHE))
         except Exception: Logger.exception(f"Cannot remove the cache folder: \"{PackWrapper.CACHE}\"")
         
+        Event.emit("export_clean_end")
+        
         
         Logger.info(f"Finished exporting: \"{export_path}\"")
+        Event.emit("export_end")
 
 
 class ResourcepackAuto():

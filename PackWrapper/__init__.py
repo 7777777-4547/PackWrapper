@@ -1,6 +1,7 @@
 from .Resourcepack import Resourcepack, ResourcepackAuto
 from .HashCalculate import hashc_file, async_hashc_file
 from .Logger import Logger, LoggerType
+from .Utils import Event
 from . import PropertiesManager
 from . import StatusChecker
 
@@ -47,6 +48,7 @@ def get_properties():
 __all__ = [
     "get_properties",
     
+    "Event",
     "Logger",
     "Resourcepack",
     "ResourcepackAuto",

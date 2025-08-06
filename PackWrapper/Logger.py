@@ -1,4 +1,5 @@
 from .PathEnum import PackWrapper
+from .Utils import Event
 
 from enum import IntEnum
 import logging
@@ -61,6 +62,8 @@ class Logger:
 
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
+        
+        Event.emit("logger_initialized")
     
     
     @staticmethod

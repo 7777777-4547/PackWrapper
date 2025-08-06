@@ -1,12 +1,17 @@
 from .Logger import Logger
+from .Utils import Event
 
 from pathlib import Path
 import json
 
 def properties_read(file_path) -> dict:
     
+    Event.emit("properties_read_start", file_path)
+    
     with open(file_path, 'r', encoding='utf-8') as file:
         properties = json.load(file)
+        
+    Event.emit("properties_read_end", file_path)
             
     return properties
     

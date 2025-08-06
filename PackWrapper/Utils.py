@@ -48,3 +48,26 @@ class File:
         return file_path
 
     
+class Event:
+    
+    _subscribers = {}
+    
+    @classmethod
+    def subscribe(cls, event_type, callback):
+
+        cls._subscribers.setdefault(event_type, []).append(callback)
+    
+    @classmethod
+    def unsubscribe(cls, event_type, callback):
+
+        if event_type in cls._subscribers:
+            cls._subscribers[event_type].remove(callback)
+    
+    @classmethod
+    def emit(cls, event_type, data=None):
+
+        for callback in cls._subscribers.get(event_type, []):
+            try:
+                callback(data)
+            except Exception as e:
+                Logger.exception(f"Event callback error: {e}")
