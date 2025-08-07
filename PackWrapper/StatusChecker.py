@@ -5,20 +5,23 @@ CONFIGURED = False
 
 def change_configure_status(status: bool) -> None:
     
-    Event.emit(change_configure_status.__name__, status)
+    Event.emit("configure_status.change_start", status)
     
     global CONFIGURED
     CONFIGURED = status
+    
+    Event.emit("configure_status.change_end", status)
+
 
 def get_configure_status() -> bool:
     
-    Event.emit(get_configure_status.__name__)
+    Event.emit("configure_status.get")
     
     return CONFIGURED
 
 def check_configure_status() -> None:
     
-    Event.emit(check_configure_status.__name__)
+    Event.emit("configure_status.check")
     
     if not get_configure_status():
         Logger.exception("PackWrapper is not configured. Please configure it before using it." + 

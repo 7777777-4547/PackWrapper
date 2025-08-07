@@ -20,10 +20,6 @@ def config(properties: str | Path, debug_mode: bool = False):
     
     global PACK_PROPERTIES
     
-    if StatusChecker.get_configure_status() is False:
-        StatusChecker.change_configure_status(True)
-    else:
-        Logger.exception("PackWrapper is already configured. Please don't configure it again.")
     
     # Configure Logger
     Logger.config(filename="packwrapper_debug.log" if debug_mode else "packwrapper.log", 
@@ -32,6 +28,13 @@ def config(properties: str | Path, debug_mode: bool = False):
                   )
     
     Logger.info(f"PackWrapper[{packwrapper_version}]")
+    
+    
+    if StatusChecker.get_configure_status() is False:
+        StatusChecker.change_configure_status(True)
+    else:
+        Logger.exception("PackWrapper is already configured. Please don't configure it again.")
+    
     
     # Properties Read
     if Path(properties).is_file():

@@ -24,17 +24,40 @@ class Resourcepack():
                  source_dir: str | Path,
                  name: str,
                  description: str, 
-                 verfmt: int | tuple[int,int] | list[int], 
+                 verfmt: int | tuple[int,int] | list[int]  |  float | tuple[float,float] | list[float], 
                  icon_path: str | Path | None = None,
                  **extra_properties
                  ):
         
+                
+        def _verfmt_correctness_check(verfmt: int | tuple[int,int] | list[int]  |  float | tuple[float,float] | list[float]):
+            
+            if (not isinstance(verfmt, (int,float))) and len(verfmt) > 2:
+                Logger.exception(f"The max verfmt len is 2, but got {len(verfmt)}!")
+                raise
+            
+            if not isinstance(verfmt, (int,float)) and verfmt[0] > verfmt[-1]:
+                Logger.exception(f"The verfmt is invalid: {verfmt}")
+
+        
+        def _decimal_convert(num: int | float):
+            parts = str(num).split('.')
+            parts = tuple(int(part) for part in parts)
+            
+            if len(parts) == 1:
+                return (parts[0], 0)
+            else:
+                return parts
+        
+        
         check_configure_status()
         
-        Event.emit("resourcepack_created")
+        Event.emit("resourcepack.create_start")
+        
+        _verfmt_correctness_check(verfmt)
         
         self.name = name
-        self.verfmt = verfmt if isinstance(verfmt, (int, list)) else list(verfmt)
+        self.verfmt = verfmt if isinstance(verfmt, (int,float,list)) else list(verfmt)
         self.icon_path = Path(icon_path) if icon_path is not None else None
         self.source_dir = Path(source_dir)
         
@@ -50,19 +73,46 @@ class Resourcepack():
         
         self.properties["description"] = self.description
         
-        self.pack_mcmeta = {
-            "pack":{
-                "pack_format": verfmt,
-                "description": self.description
+        self.verfmt_min = verfmt_min = verfmt if isinstance(verfmt, (int,float)) else verfmt[0]
+        self.verfmt_max = verfmt_max = verfmt if isinstance(verfmt, (int,float)) else verfmt[-1]
+
+        if (verfmt_min < 65) and (verfmt_max < 65):
+            
+            verfmt_min = int(verfmt_min)
+            verfmt_max = int(verfmt_max)
+            
+            self.pack_mcmeta = {
+                "pack":{
+                    "pack_format": verfmt,
+                    "description": self.description
+                }
+            } if isinstance(verfmt, int) else {
+                "pack":{
+                    "pack_format": verfmt_min,
+                    "supported_formats": [verfmt_min, verfmt_max],
+                    "description": self.description
+                }
             }
-        } if isinstance(verfmt, int) else {
-            "pack":{
-                "pack_format": verfmt[0],
-                "supported_formats": verfmt,
-                "description": self.description
+        elif (verfmt_min < 65) and (verfmt_max >= 65):
+            self.pack_mcmeta = {
+                "pack":{
+                    "pack_format": int(verfmt_min),
+                    "description": self.description,
+                    "supported_formats": [int(verfmt_min), int(verfmt_max)],
+                    "min_format": _decimal_convert(verfmt_min),
+                    "max_format": _decimal_convert(verfmt_max)
+                }
             }
-        }
+        else:
+            self.pack_mcmeta = {
+                "pack":{
+                    "min_format": _decimal_convert(verfmt_min),
+                    "max_format": _decimal_convert(verfmt_max),
+                    "description": self.description,                    
+                }
+            }
     
+        Event.emit("resourcepack.create_end")
     
     def export(self, compresslevel: compresslevels = 5, export_name: str | None = None):
         
@@ -82,7 +132,7 @@ class Resourcepack():
                 export_name = export_name
         
         Logger.info(f"Starting export: \"{export_name}\"")
-        Event.emit("export_start")
+        Event.emit("resourcepack.export_start")
         
         cache_dir = PackWrapper.CACHE / self.source_dir.name
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -93,7 +143,7 @@ class Resourcepack():
         
         # Copy files
         Logger.info("Copying files...")
-        Event.emit("export_copy_start")
+        Event.emit("resourcepack.export_copy_start")
         
         try:
             for file in self.source_dir.rglob("*"):
@@ -113,12 +163,12 @@ class Resourcepack():
             try: shutil.copy2(self.icon_path, cache_dir / "pack.png")
             except Exception: Logger.warning(f"Cannot copy the icon: \"{self.icon_path}\" to \"{cache_dir / self.icon_path.name}\"")
 
-        Event.emit("export_copy_end")
+        Event.emit("resourcepack.export_copy_end")
         
         
         # Dump resourcepack mcmeta
         Logger.info("Dumping resourcepack mcmeta...")
-        Event.emit("export_dump_start")
+        Event.emit("resourcepack.export_dump_start")
         
         try:
             with open(cache_dir / "pack.mcmeta", 'w', encoding='utf-8') as f:
@@ -127,13 +177,13 @@ class Resourcepack():
         except Exception:
             Logger.exception(f"Cannot dump the resourcepack mcmeta: \"{cache_dir / "pack.mcmeta"}\"")
             
-        Event.emit("export_dump_end")
+        Event.emit("resourcepack.export_dump_end")
         
         
         # Packing
         Logger.info("Packing and exporting...")
         Logger.debug(f"The export path: \"{export_path}\"")
-        Event.emit("export_pack_start")
+        Event.emit("resourcepack.export_pack_start")
         
         try:
             with zipfile.ZipFile(export_path, 'w', zipfile.ZIP_DEFLATED, compresslevel = compresslevel) as zipf:
@@ -145,21 +195,21 @@ class Resourcepack():
         except Exception:
             Logger.exception(f"Cannot export the pack: \"{export_name}\"")
         
-        Event.emit("export_pack_end")
+        Event.emit("resourcepack.export_pack_end")
             
                     
         # Clean up            
         Logger.info("Cleaning up...")
-        Event.emit("export_clean_start")
+        Event.emit("resourcepack.export_clean_start")
         
         try: shutil.rmtree(str(PackWrapper.CACHE))
         except Exception: Logger.exception(f"Cannot remove the cache folder: \"{PackWrapper.CACHE}\"")
         
-        Event.emit("export_clean_end")
+        Event.emit("resourcepack.export_clean_end")
         
         
         Logger.info(f"Finished exporting: \"{export_path}\"")
-        Event.emit("export_end")
+        Event.emit("resourcepack.export_end")
 
 
 class ResourcepackAuto():
