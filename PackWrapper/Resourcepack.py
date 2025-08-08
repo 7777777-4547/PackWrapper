@@ -277,6 +277,10 @@ class ResourcepackAuto():
         `export_name` is optional, if not specified, the name of the resourcepack will be used.
         '''
         
+        Event.emit("resourcepack_auto.export_start")
+        
         Resourcepack(
             self.source_dir, self.name, self.description, self.verfmt, self.icon_path, **self.extra_properties
         ).export(compresslevel, export_name = export_name)
+        
+        Event.emit("resourcepack_auto.export_end")
