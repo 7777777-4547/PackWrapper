@@ -94,6 +94,12 @@ class Resourcepack():
                 }
             }
         elif (verfmt_min < 65) and (verfmt_max >= 65):
+            
+            if verfmt_min < 15:
+                Logger.warning("The pack's minimum format is too low, it may not be compatible with " + 
+                               "the version 1.21.9 or higher of Minecraft. Now it changed to 15.")
+                verfmt_min = 15
+            
             self.pack_mcmeta = {
                 "pack":{
                     "pack_format": int(verfmt_min),
