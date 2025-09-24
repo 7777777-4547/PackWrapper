@@ -111,15 +111,21 @@ class Resourcepack():
                     "description": self.description,                    
                 }
             }
+            
+        self.cache_dir = PackWrapper.EXPORT / self.source_dir.name
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        Logger.debug(f"The resourcepack cache directory: \"{self.cache_dir}\"")
     
         Event.emit("resourcepack.create_end")
     
-    def export(self, compresslevel: compresslevels = 5, export_name: str | None = None):
+    
+    def export(self, export_name: str | None = None):
         
         '''
         The function to export the resourcepack, compresslevel is the level of compression, 1-9, 5 is the default.
         `export_name` is optional, if not specified, the name of the resourcepack will be used.
         '''
+        cache_dir = self.cache_dir
         properties = self.properties
         
         if export_name is None:
@@ -130,17 +136,12 @@ class Resourcepack():
             except Exception:
                 Logger.error(f"Invalid export_name template \"{export_name}\", return to the original string.")
                 export_name = export_name
+                
+        self.export_name = export_name
         
         Logger.info(f"Starting export: \"{export_name}\"")
         Event.emit("resourcepack.export_start")
-        
-        cache_dir = PackWrapper.CACHE / self.source_dir.name
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        Logger.debug(f"The resourcepack cache directory: \"{cache_dir}\"")
-        export_path = PackWrapper.EXPORT / f"{export_name}.zip"
-        Logger.debug(f"The export final destination path: \"{export_path}\"")
-        
-        
+                        
         # Copy files
         Logger.info("Copying files...")
         Event.emit("resourcepack.export_copy_start")
@@ -178,12 +179,21 @@ class Resourcepack():
             Logger.exception(f"Cannot dump the resourcepack mcmeta: \"{cache_dir / "pack.mcmeta"}\"")
             
         Event.emit("resourcepack.export_dump_end")
+        Logger.info(f"Finished exporting: \"{cache_dir}\"")
+        Event.emit("resourcepack.export_end")
+
+
+    def package(self, compresslevel: compresslevels = 5):
         
+        cache_dir = self.cache_dir        
+        export_name = self.export_name
+        export_path = PackWrapper.PACKAGE / f"{export_name}.zip"
+        Logger.debug(f"The package destination path: \"{export_path}\"")
         
         # Packing
-        Logger.info("Packing and exporting...")
-        Logger.debug(f"The export path: \"{export_path}\"")
-        Event.emit("resourcepack.export_pack_start")
+        Logger.info("Packing...")
+        Logger.debug(f"The package path: \"{export_path}\"")
+        Event.emit("resourcepack.package_start")
         
         try:
             with zipfile.ZipFile(export_path, 'w', zipfile.ZIP_DEFLATED, compresslevel = compresslevel) as zipf:
@@ -193,94 +203,8 @@ class Resourcepack():
                         zipf.write(file, relative_path)
             
         except Exception:
-            Logger.exception(f"Cannot export the pack: \"{export_name}\"")
-        
-        Event.emit("resourcepack.export_pack_end")
-            
-                    
-        # Clean up            
-        Logger.info("Cleaning up...")
-        Event.emit("resourcepack.export_clean_start")
-        
-        try: shutil.rmtree(str(PackWrapper.CACHE))
-        except Exception: Logger.exception(f"Cannot remove the cache folder: \"{PackWrapper.CACHE}\"")
-        
-        Event.emit("resourcepack.export_clean_end")
-        
-        
-        Logger.info(f"Finished exporting: \"{export_path}\"")
-        Event.emit("resourcepack.export_end")
+            Logger.exception(f"Cannot packaging the pack: \"{export_name}\"")
+                
+        Logger.info(f"Finished packaging: \"{export_path}\"")
 
-
-class ResourcepackAuto():
-    
-    '''
-    Simply automatic resourcepack exporting class, 
-    if you want to use it you need to use the `PackWrapper.config()` function firstly, 
-    and must provide the right properties contect(not the file path) to use it.
-    
-    The properties must provide these keys: `name`, `verfmt`, `description`, `source_dir`.
-    `icon_path` and `export_name` are optional.
-    '''
-    
-    compresslevels: TypeAlias = Literal[0,1,2,3,4,5,6,7,8,9]
-    
-    def __init__(self, properties: dict):
-        
-        check_configure_status()
-        
-        self.properties = properties
-        try:
-            self.name = properties["name"]
-            self.description = properties["description"]
-            self.verfmt = properties["verfmt"]
-            self.source_dir = properties["source_dir"]
-        except Exception: Logger.exception("Cannot read the properties")
-        
-        try:
-            self.icon_path = properties["icon_path"]
-        except Exception: 
-            self.icon_path = None
-            
-        try:
-            self.export_name = properties["export_name"]
-            main_properties = {"name", "description", "verfmt", "source_dir", "export_name", "icon_path"}
-        except KeyError:
-            self.export_name = None
-            main_properties = {"name", "description", "verfmt", "source_dir", "icon_path"}
-        
-        self.extra_properties = {k: v for k, v in properties.items() if k not in main_properties}
-        
-                    
-        if not isinstance(self.verfmt, (int, list)):
-            self.verfmt = list(self.verfmt)
-        
-        self.pack_mcmeta = {
-            "pack":{
-                "pack_format": self.verfmt,
-                "description": self.description
-            }
-        } if isinstance(self.verfmt, int) else {
-            "pack":{
-                "pack_format": self.verfmt[0],
-                "supported_formats": self.verfmt,
-                "description": self.description
-            }
-        }
-    
-    def export(self, compresslevel: compresslevels = 5):
-        
-        export_name = self.export_name
-        
-        '''
-        The function to export the resourcepack, compresslevel is the level of compression, 1-9, 5 is the default.
-        `export_name` is optional, if not specified, the name of the resourcepack will be used.
-        '''
-        
-        Event.emit("resourcepack_auto.export_start")
-        
-        Resourcepack(
-            self.source_dir, self.name, self.description, self.verfmt, self.icon_path, **self.extra_properties
-        ).export(compresslevel, export_name = export_name)
-        
-        Event.emit("resourcepack_auto.export_end")
+        Event.emit("resourcepack.package_end")

@@ -38,7 +38,7 @@ class File:
         
     def __init__(self, path: str):
         
-        file_path = Path(PackWrapper.CACHE / path.split("/")[-1])
+        file_path = Path(PackWrapper.EXPORT / path.split("/")[-1])
         
         if Network.is_url(path):
             Network.download_file(path, file_path)

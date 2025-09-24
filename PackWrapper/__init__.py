@@ -1,25 +1,26 @@
-from .Resourcepack import Resourcepack, ResourcepackAuto
-from .HashCalculate import hashc_file, async_hashc_file
+from .Resourcepack import Resourcepack
+from .HashCalculate import hashc_file
 from .Logger import Logger, LoggerType
 from .Utils import Event
-from . import PropertiesManager
+from .PropertiesManager import properties_read
 from . import StatusChecker
-
-from pathlib import Path
+from . import ScriptSystem
 
 packwrapper_version = "Dev"
 
 """
-Using `PackWrapper.config()` firstly to continuce the next function use.
+Using `PackWrapper.init()` firstly to continuce the next function use.
 """
 
-PACK_PROPERTIES = {}
+MAIN_PROPERTIES = {}
 
 # PackWrapper Configure
-def config(properties: str | Path, debug_mode: bool = False):
+def init():
     
-    global PACK_PROPERTIES
+    global MAIN_PROPERTIES
     
+    MAIN_PROPERTIES = properties_read("packwrapper.json")
+    debug_mode = MAIN_PROPERTIES.get("packwrapper", {}).get("debug_mode", False)
     
     # Configure Logger
     Logger.config(filename="packwrapper_debug.log" if debug_mode else "packwrapper.log", 
@@ -28,35 +29,29 @@ def config(properties: str | Path, debug_mode: bool = False):
                   )
     
     Logger.info(f"PackWrapper[{packwrapper_version}]")
-    
-    
+
     if StatusChecker.get_configure_status() is False:
         StatusChecker.change_configure_status(True)
     else:
         Logger.exception("PackWrapper is already configured. Please don't configure it again.")
-    
-    
-    # Properties Read
-    if Path(properties).is_file():
-        PACK_PROPERTIES = PropertiesManager.single_properties_read(properties)
-    else:
-        PACK_PROPERTIES = PropertiesManager.multiple_properties_read(properties)
         
     
-def get_properties():
-    return PACK_PROPERTIES
+def get_properties_main():
+    return MAIN_PROPERTIES
 
+def get_packinfo():
+    return MAIN_PROPERTIES["pack_info"]
 
 
 __all__ = [
-    "get_properties",
+    "properties_read",
+    "get_properties_main",
     
     "Event",
     "Logger",
     "Resourcepack",
-    "ResourcepackAuto",
+    "ScriptSystem",
     
-    "config",
-    "hashc_file",
-    "async_hashc_file"
+    "init",
+    "hashc_file"
 ]

@@ -14,7 +14,7 @@ class RunClient:
         check_configure_status()
         client_config = {}
         client_config["ingame_setting"] = kwargs
-        client_config["dependency"] = Dependency.get_dependencies()
+        client_config["dependency"] = Dependency.Dependency.get_dependencies()
         client_config["java_args"] = java_args
         
         self.client_config = client_config

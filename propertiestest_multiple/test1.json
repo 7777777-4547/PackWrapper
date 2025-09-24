@@ -1,9 +1,0 @@
-{
-    "name": "examplepack-1",
-    "version": "1.0.0",
-    "verfmt": [0,99],
-    "description":"test",
-    "source_dir": "resourcepacktest",
-
-    "export_name": "${name}_${version}"
-}

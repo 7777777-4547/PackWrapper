@@ -1,0 +1,10 @@
+{
+	"pack_info": {
+		"version": "1.0.1",
+		"verfmt": [0, 99],
+		"description": "test",
+		"source_dir": "resourcepacktest",
+
+		"export_name": "${name}_${version}"
+	}
+}

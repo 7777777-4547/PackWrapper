@@ -18,8 +18,9 @@ class PackWrapper(PathEnum):
     
     ROOT = Path("./.packwrapper")
     CACHE = Path(ROOT/"cache")
-    GAME = Path(ROOT/"game")
     EXPORT = Path(ROOT/"export")
+    PACKAGE = Path(ROOT/"package")
+    GAME = Path(ROOT/"game")
     
     def __init__(self, path):
         path.mkdir(exist_ok=True)
