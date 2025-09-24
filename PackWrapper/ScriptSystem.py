@@ -1,9 +1,12 @@
+from .StatusChecker import change_configure_status
 from .PropertiesManager import properties_read
 from .Logger import Logger, LoggerType
 
 from pathlib import Path
 import json
 import sys
+
+
 
 SCRIPT_DIR: Path | str
 _main_properties: dict
@@ -21,7 +24,10 @@ def init(script_dir: Path | str, main_properties: dict):
     
     Logger.info("[ScriptSystem] ScriptSystem initialized.")
 
+
+
 def script_logger_config(debug_mode = False):
+
     Logger.config(
         filename = "packwrapper_script_debug.log",
         filemode = "w",
@@ -35,6 +41,8 @@ def script_logger_config(debug_mode = False):
         format = "[%(asctime)s][%(threadName)s/%(levelname)s]: [ScriptSystem] %(message)s", 
         datefmt = "%Y/%m/%d|%H:%M:%S"
     )
+    
+    change_configure_status(True)
 
 def merge_properties(script_config_filename: str | Path):
     

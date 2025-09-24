@@ -25,4 +25,4 @@ def check_configure_status() -> None:
     
     if not get_configure_status():
         Logger.exception("PackWrapper is not configured. Please configure it before using it." + 
-                       "(Use 'PackWrapper.config(properties_file_path)' to configure.)")
+                       "(Use 'PackWrapper.init()' to configure.)")
