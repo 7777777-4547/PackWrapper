@@ -196,8 +196,8 @@ class Resourcepack():
         export_path = PackWrapper.PACKAGE / f"{export_name}.zip"
         Logger.debug(f"The package destination path: \"{export_path}\"")
         
-        # Packing
-        Logger.info("Packing...")
+        # Packaging
+        Logger.info("Packaging...")
         Logger.debug(f"The package path: \"{export_path}\"")
         Event.emit("resourcepack.package_start")
         
