@@ -1,6 +1,6 @@
 from .PathEnum import PackWrapper
 from .Logger import Logger
-from .Utils import Event
+from .Utils import Event, EventType
 from .StatusChecker import check_configure_status
 
 from typing import Literal, TypeAlias
@@ -34,7 +34,6 @@ class Resourcepack():
             
             if (not isinstance(verfmt, (int,float))) and len(verfmt) > 2:
                 Logger.exception(f"The max verfmt len is 2, but got {len(verfmt)}!")
-                raise
             
             if not isinstance(verfmt, (int,float)) and verfmt[0] > verfmt[-1]:
                 Logger.exception(f"The verfmt is invalid: {verfmt}")
@@ -52,7 +51,7 @@ class Resourcepack():
         
         check_configure_status()
         
-        Event.emit("resourcepack.create_start")
+        Event.emit_withdata(EventType.RESOURCEPACK_CREATE, source_dir)
         
         _verfmt_correctness_check(verfmt)
         
@@ -118,11 +117,11 @@ class Resourcepack():
                 }
             }
             
-        self.cache_dir = PackWrapper.EXPORT / self.source_dir.name
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        Logger.debug(f"The resourcepack cache directory: \"{self.cache_dir}\"")
+        self.export_dir = PackWrapper.EXPORT / self.source_dir.name
+        self.export_dir.mkdir(parents=True, exist_ok=True)
+        Logger.debug(f"The resourcepack export directory: \"{self.export_dir}\"")
     
-        Event.emit("resourcepack.create_end")
+        Event.emit_withdata(EventType.RESOURCEPACK_CREATED, self.export_dir)
     
     
     def export(self, export_name: str | None = None):
@@ -131,7 +130,7 @@ class Resourcepack():
         The function to export the resourcepack, compresslevel is the level of compression, 1-9, 5 is the default.
         `export_name` is optional, if not specified, the name of the resourcepack will be used.
         '''
-        cache_dir = self.cache_dir
+        export_dir = self.export_dir
         properties = self.properties
         
         if export_name is None:
@@ -143,21 +142,26 @@ class Resourcepack():
                 Logger.error(f"Invalid export_name template \"{export_name}\", return to the original string.")
                 export_name = export_name
                 
-        self.export_name = export_name
+        self.package_name = export_name
         
         Logger.info(f"Starting export: \"{export_name}\"")
-        Event.emit("resourcepack.export_start")
-                        
+        Event.emit_withdata(EventType.RESOURCEPACK_EXPORT, export_name)
+        
+        # Export path exist check and clean
+        if export_dir.exists():
+            Logger.warning(f"The export directory \"{export_dir}\" already exists, it will be deleted and recreated.")
+            shutil.rmtree(export_dir)
+                                    
         # Copy files
         Logger.info("Copying files...")
-        Event.emit("resourcepack.export_copy_start")
+        Event.emit(EventType.RESOURCEPACK_EXPORTING_COPY)
         
         try:
             for file in self.source_dir.rglob("*"):
                 if file.is_file():
                     
                     rel_path = file.relative_to(self.source_dir)
-                    dest_path = cache_dir / rel_path
+                    dest_path = export_dir / rel_path
                     dest_path.parent.mkdir(parents=True, exist_ok=True)
                     
                     try: shutil.copy2(file, dest_path)
@@ -167,50 +171,50 @@ class Resourcepack():
             Logger.exception(f"Cannot copy the files: {self.source_dir}")
         
         if self.icon_path is not None:
-            try: shutil.copy2(self.icon_path, cache_dir / "pack.png")
-            except Exception: Logger.warning(f"Cannot copy the icon: \"{self.icon_path}\" to \"{cache_dir / self.icon_path.name}\"")
+            try: shutil.copy2(self.icon_path, export_dir / "pack.png")
+            except Exception: Logger.warning(f"Cannot copy the icon: \"{self.icon_path}\" to \"{export_dir / self.icon_path.name}\"")
 
-        Event.emit("resourcepack.export_copy_end")
+        Event.emit(EventType.RESOURCEPACK_EXPORTING_COPYED)
         
         
         # Dump resourcepack mcmeta
         Logger.info("Dumping resourcepack mcmeta...")
-        Event.emit("resourcepack.export_dump_start")
+        Event.emit(EventType.RESOURCEPACK_EXPORTING_DUMP)
         
         try:
-            with open(cache_dir / "pack.mcmeta", 'w', encoding='utf-8') as f:
+            with open(export_dir / "pack.mcmeta", 'w', encoding='utf-8') as f:
                 json.dump(self.pack_mcmeta, f, ensure_ascii=False, indent=4)
             
         except Exception:
-            Logger.exception(f"Cannot dump the resourcepack mcmeta: \"{cache_dir / "pack.mcmeta"}\"")
+            Logger.exception(f"Cannot dump the resourcepack mcmeta: \"{export_dir / "pack.mcmeta"}\"")
             
-        Event.emit("resourcepack.export_dump_end")
-        Logger.info(f"Finished exporting: \"{cache_dir}\"")
-        Event.emit("resourcepack.export_end")
+        Event.emit(EventType.RESOURCEPACK_EXPORTING_DUMPED)
+        Logger.info(f"Finished exporting: \"{export_dir}\"")
+        Event.emit(EventType.RESOURCEPACK_EXPORTED)
 
 
     def package(self, compresslevel: compresslevels = 5):
         
-        cache_dir = self.cache_dir        
-        export_name = self.export_name
-        export_path = PackWrapper.PACKAGE / f"{export_name}.zip"
-        Logger.debug(f"The package destination path: \"{export_path}\"")
+        export_dir = self.export_dir        
+        package_name = self.package_name
+        package_path = PackWrapper.PACKAGE / f"{package_name}.zip"
+        Logger.debug(f"The package destination path: \"{package_path}\"")
         
         # Packaging
         Logger.info("Packaging...")
-        Logger.debug(f"The package path: \"{export_path}\"")
-        Event.emit("resourcepack.package_start")
+        Logger.debug(f"The package path: \"{package_path}\"")
+        Event.emit(EventType.RESOURCEPACK_PACKAGE)
         
         try:
-            with zipfile.ZipFile(export_path, 'w', zipfile.ZIP_DEFLATED, compresslevel = compresslevel) as zipf:
-                for file in (cache_dir).rglob('*'):
+            with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED, compresslevel = compresslevel) as zipf:
+                for file in (export_dir).rglob('*'):
                     if file.is_file():
-                        relative_path = file.relative_to(cache_dir)
+                        relative_path = file.relative_to(export_dir)
                         zipf.write(file, relative_path)
             
         except Exception:
-            Logger.exception(f"Cannot packaging the pack: \"{export_name}\"")
+            Logger.exception(f"Cannot packaging the pack: \"{package_name}\"")
                 
-        Logger.info(f"Finished packaging: \"{export_path}\"")
+        Logger.info(f"Finished packaging: \"{package_path}\"")
 
-        Event.emit("resourcepack.package_end")
+        Event.emit(EventType.RESOURCEPACK_PACKAGED)

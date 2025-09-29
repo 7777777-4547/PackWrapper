@@ -2,6 +2,7 @@ from .Logger import Logger
 from .PathEnum import PackWrapper
 
 from urllib.parse import urlparse
+from enum import StrEnum
 from pathlib import Path
 import shutil
 
@@ -47,26 +48,60 @@ class File:
             
         return file_path
 
+
+class EventType(StrEnum):
+    
+    CONFIGURED_CHANGE = "configure_status.change"
+    CONFIGURED_CHANGED = "configure_status.changed"
+    CONFIGURED_GET = "configure_status.get"
+    CONFIGURED_CHECK = "configure_status.check"
+    
+    RESOURCEPACK_CREATE = "resourcepack.create"
+    RESOURCEPACK_CREATED = "resourcepack.created"
+    RESOURCEPACK_EXPORT = "resourcepack.export"
+    RESOURCEPACK_EXPORTING_COPY = "resourcepack.exporting.copy"
+    RESOURCEPACK_EXPORTING_COPYED = "resourcepack.exporting.copyed"
+    RESOURCEPACK_EXPORTING_DUMP = "resourcepack.exporting.dump"
+    RESOURCEPACK_EXPORTING_DUMPED = "resourcepack.exporting.dumped"
+    RESOURCEPACK_EXPORTED = "resourcepack.exported"
+    RESOURCEPACK_PACKAGE = "resourcepack.package"
+    RESOURCEPACK_PACKAGED = "resourcepack.packaged"
+    
+    @classmethod
+    def add_event_type(cls, name, value):
+        setattr(cls, name, value)
     
 class Event:
     
     _subscribers = {}
+    events = []
     
     @classmethod
-    def subscribe(cls, event_type, callback):
+    def subscribe(cls, event_type: EventType, callback):
         Logger.debug(f"Subscribing to event \"{event_type}\" and callback \"{callback}\"")
 
         cls._subscribers.setdefault(event_type, []).append(callback)
     
     @classmethod
-    def unsubscribe(cls, event_type, callback):
+    def unsubscribe(cls, event_type: EventType, callback):
         Logger.debug(f"Unsubscribing from event \"{event_type}\" and callback \"{callback}\"")
 
         if event_type in cls._subscribers:
             cls._subscribers[event_type].remove(callback)
-    
+                    
     @classmethod
-    def emit(cls, event_type, data=None):
+    def emit(cls, event_type: EventType):
+        Logger.debug(f"Event \"{event_type}\" emitted")
+        cls.events.append(event_type)
+
+        for callback in cls._subscribers.get(event_type, []):
+            try:
+                callback()
+            except Exception as e:
+                Logger.exception(f"Event callback error: {e}")
+
+    @classmethod
+    def emit_withdata(cls, event_type: EventType, data=None):
         Logger.debug(f"Event \"{event_type}\" emitted with data: \"{data}\"")
 
         for callback in cls._subscribers.get(event_type, []):

@@ -6,6 +6,8 @@ from .PropertiesManager import properties_read
 from . import StatusChecker
 from . import ScriptSystem
 
+import copy
+
 packwrapper_version = "Dev"
 
 """
@@ -37,10 +39,10 @@ def init():
         
     
 def get_properties_main():
-    return MAIN_PROPERTIES
+    return copy.deepcopy(MAIN_PROPERTIES)
 
 def get_packinfo():
-    return MAIN_PROPERTIES["pack_info"]
+    return copy.deepcopy(MAIN_PROPERTIES["pack_info"])
 
 
 __all__ = [

@@ -1,9 +1,9 @@
 {
 	"pack_info": {
-		"name": "examplepack2",
-		"version": "1.0.1",
+		"name": "examplepack3",
+		"version": "1.0.2",
 		"verfmt": [0, 99],
-		"description": "test",
+		"description": "test2",
 		"source_dir": "resourcepacktest",
 
 		"package_name": "${name}_${version}"
