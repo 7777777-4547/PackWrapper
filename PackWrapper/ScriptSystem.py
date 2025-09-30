@@ -62,7 +62,7 @@ def merge_properties(script_config_filename: str | Path):
     script_config_original = properties_read(script_config_filename)
     
     for key, value in script_config_original.items():
-        if isinstance(value, dict):
+        if isinstance(value, dict) and (key in script_config):
             for subkey, subvalue in value.items():
                 script_config[key][subkey] = subvalue
         else:
