@@ -154,7 +154,7 @@ class Resourcepack():
                                     
         # Copy files
         Logger.info("Copying files...")
-        Event.emit(EventType.RESOURCEPACK_EXPORTING_COPY)
+        Event.emit_withdata(EventType.RESOURCEPACK_EXPORTING_COPY, self.source_dir)
         
         try:
             for file in self.source_dir.rglob("*"):
@@ -174,7 +174,7 @@ class Resourcepack():
             try: shutil.copy2(self.icon_path, export_dir / "pack.png")
             except Exception: Logger.warning(f"Cannot copy the icon: \"{self.icon_path}\" to \"{export_dir / self.icon_path.name}\"")
 
-        Event.emit(EventType.RESOURCEPACK_EXPORTING_COPYED)
+        Event.emit_withdata(EventType.RESOURCEPACK_EXPORTING_COPYED, self.export_dir)
         
         
         # Dump resourcepack mcmeta
