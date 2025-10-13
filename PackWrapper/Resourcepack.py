@@ -26,6 +26,7 @@ class Resourcepack():
                  description: str, 
                  verfmt: int | tuple[int,int] | list[int]  |  float | tuple[float,float] | list[float], 
                  icon_path: str | Path | None = None,
+                 license_path: str | Path | None = None,
                  **extra_properties
                  ):
         
@@ -58,6 +59,7 @@ class Resourcepack():
         self.name = name
         self.verfmt = verfmt if isinstance(verfmt, (int,float,list)) else list(verfmt)
         self.icon_path = Path(icon_path) if icon_path is not None else None
+        self.license_path = Path(license_path) if license_path is not None else None
         self.source_dir = Path(source_dir)
         
         self.properties = {
@@ -174,6 +176,10 @@ class Resourcepack():
             try: shutil.copy2(self.icon_path, export_dir / "pack.png")
             except Exception: Logger.warning(f"Cannot copy the icon: \"{self.icon_path}\" to \"{export_dir / self.icon_path.name}\"")
 
+        if self.license_path is not None:        
+            try: shutil.copy2(self.license_path, export_dir / self.license_path.name)
+            except Exception: Logger.warning(f"Cannot copy the license: \"{self.license_path}\" to \"{export_dir / self.license_path.name}\"")
+        
         Event.emit_withdata(EventType.RESOURCEPACK_EXPORTING_COPYED, self.export_dir)
         
         
