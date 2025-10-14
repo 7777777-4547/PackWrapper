@@ -1,6 +1,7 @@
 from .PathEnum import PackWrapper
 
 from enum import IntEnum
+from typing import Any
 import logging
 import sys
 
@@ -89,7 +90,7 @@ class Logger:
             
     
     @staticmethod
-    def _exception(msg, *args, exc_info=True, **kwargs):
+    def _exception(msg, *args, exc_info: Any = True, **kwargs):
         
         '''
         Log a message with severity 'ERROR' on the root logger, with exception
@@ -108,7 +109,7 @@ class Logger:
     
     
     @staticmethod
-    def _warning(msg, *args, exc_info=True, **kwargs):
+    def _warning(msg, *args, exc_info: Any = True, **kwargs):
         
         '''
         Log a message with severity 'WARNING' on the root logger. If the logger has
