@@ -27,6 +27,7 @@ class Resourcepack():
                  verfmt: int | tuple[int,int] | list[int]  |  float | tuple[float,float] | list[float], 
                  icon_path: str | Path | None = None,
                  license_path: str | Path | None = None,
+                 extra_mcmeta: dict | None = None, # overlays, language, filter
                  **extra_properties
                  ):
         
@@ -118,6 +119,9 @@ class Resourcepack():
                     "description": self.description,                    
                 }
             }
+        
+        if extra_mcmeta is not None:
+            self.pack_mcmeta.update(extra_mcmeta)
             
         self.export_dir = PackWrapper.EXPORT / self.source_dir.name
         self.export_dir.mkdir(parents=True, exist_ok=True)
