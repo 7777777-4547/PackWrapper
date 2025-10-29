@@ -1,5 +1,6 @@
 from .PathEnum import PackWrapper
 
+from functools import wraps
 from enum import IntEnum
 from typing import Any
 import logging
@@ -53,6 +54,7 @@ class Logger:
             self.__id = _id
         
         def __call__(self, func):
+            @wraps(func)
             def wrapper(*args, **kwargs):
                 self.set(self.__id)
                 result = func(*args, **kwargs)
