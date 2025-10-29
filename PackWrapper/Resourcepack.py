@@ -129,6 +129,8 @@ class Resourcepack():
     
         Event.emit_withdata(EventType.RESOURCEPACK_CREATED, self.export_dir)
     
+    def get_export_dir(self) -> Path:
+        return self.export_dir
     
     def export(self, export_name: str | None = None):
         
