@@ -48,6 +48,17 @@ class Logger:
         @classmethod
         def reset(cls):
             cls._id = None
+            
+        def __init__(self, _id: str | None = None):
+            self.__id = _id
+        
+        def __call__(self, func):
+            def wrapper(*args, **kwargs):
+                self.set(self.__id)
+                result = func(*args, **kwargs)
+                self.reset()
+                return result
+            return wrapper
 
     class CustomFormatter(logging.Formatter):
         def format(self, record):

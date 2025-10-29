@@ -17,13 +17,13 @@ def get_properties_main():
     return copy.deepcopy(MAIN_PROPERTIES)
 
 
+@Logger.ID("ScriptSystem")
 def init(script_dir: Path | str, main_properties: dict):
     global SCRIPT_DIR
     SCRIPT_DIR = script_dir
     global MAIN_PROPERTIES
     MAIN_PROPERTIES = main_properties
     
-    Logger.ID.set("ScriptSystem")
     Logger.info("ScriptSystem initialized.")
 
 
@@ -71,7 +71,8 @@ def merge_properties(script_config_filename: str | Path):
     return script_config
 
     
-def run_script(script_name: str | Path, timeout: int = 5):
+@Logger.ID("ScriptSystem")
+def run_script(script_name: str | Path, timeout: float | None = 5):
         
     script_filename = Path(SCRIPT_DIR, f"{script_name}.py")
     script_config_filename = Path(SCRIPT_DIR, f"{script_name}.json")
@@ -95,17 +96,17 @@ def run_script(script_name: str | Path, timeout: int = 5):
         try:
             subprocess.run(cmd, timeout = timeout if not is_debug_mode else None)
             Logger.info(f"Script \"{script_name}\" finished.")
-            Logger.ID.reset()
+            
             
         except subprocess.TimeoutExpired:
             Logger.exception(f"Script \"{script_name}\" timed out.")
-            Logger.ID.reset()
+            
             
         except Exception:
             Logger.exception(f"Script \"{script_name}\" failed.")
-            Logger.ID.reset()
+            
 
     else:
         Logger.exception(f"Script \"{script_name}\" not found or not configured correctly.")
-        Logger.ID.reset()
+        
 
