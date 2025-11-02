@@ -72,7 +72,7 @@ def merge_properties(script_config_filename: str | Path):
 
     
 @Logger.ID("ScriptSystem")
-def run_script(script_name: str | Path, timeout: float | None = 5):
+def run_script(script_name: str | Path, timeout: float | None = None):
         
     script_filename = Path(SCRIPT_DIR, f"{script_name}.py")
     script_config_filename = Path(SCRIPT_DIR, f"{script_name}.json")
