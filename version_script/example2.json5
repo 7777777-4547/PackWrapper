@@ -1,0 +1,11 @@
+{
+	pack_info: {
+		name: "examplepack3", // a comment
+		version: "1.0.2",
+		verfmt: [0, 99],
+		description: "test2",
+		source_dir: "resourcepacktest",
+
+		package_name: "${name}_${version}"
+	}
+}

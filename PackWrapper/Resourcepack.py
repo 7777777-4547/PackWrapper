@@ -1,6 +1,5 @@
-from .PathEnum import PackWrapper
 from .Logger import Logger
-from .Utils import Event, EventType
+from .Utils import Event, EventType, PackWrapperPath
 from .StatusChecker import check_configure_status
 
 from typing import Literal, TypeAlias
@@ -52,9 +51,7 @@ class Resourcepack():
         
         
         check_configure_status()
-        
-        Event.emit_withdata(EventType.RESOURCEPACK_CREATE, source_dir)
-        
+                
         _verfmt_correctness_check(verfmt)
         
         self.name = name
@@ -123,12 +120,10 @@ class Resourcepack():
         if extra_mcmeta is not None:
             self.pack_mcmeta.update(extra_mcmeta)
             
-        self.export_dir = PackWrapper.EXPORT / self.source_dir.name
+        self.export_dir = PackWrapperPath.EXPORT / self.source_dir.name
         self.export_dir.mkdir(parents=True, exist_ok=True)
         Logger.debug(f"The resourcepack export directory: \"{self.export_dir}\"")
-    
-        Event.emit_withdata(EventType.RESOURCEPACK_CREATED, self.export_dir)
-    
+        
     def get_export_dir(self) -> Path:
         return self.export_dir
     
@@ -153,7 +148,6 @@ class Resourcepack():
         self.package_name = export_name
         
         Logger.info(f"Starting export: \"{export_name}\"")
-        Event.emit_withdata(EventType.RESOURCEPACK_EXPORT, export_name)
         
         # Export path exist check and clean
         if export_dir.exists():
@@ -162,7 +156,6 @@ class Resourcepack():
                                     
         # Copy files
         Logger.info("Copying files...")
-        Event.emit_withdata(EventType.RESOURCEPACK_EXPORTING_COPY, self.source_dir)
         
         try:
             for file in self.source_dir.rglob("*"):
@@ -186,12 +179,10 @@ class Resourcepack():
             try: shutil.copy2(self.license_path, export_dir / self.license_path.name)
             except Exception: Logger.warning(f"Cannot copy the license: \"{self.license_path}\" to \"{export_dir / self.license_path.name}\"")
         
-        Event.emit_withdata(EventType.RESOURCEPACK_EXPORTING_COPYED, self.export_dir)
         
         
         # Dump resourcepack mcmeta
         Logger.info("Dumping resourcepack mcmeta...")
-        Event.emit(EventType.RESOURCEPACK_EXPORTING_DUMP)
         
         try:
             with open(export_dir / "pack.mcmeta", 'w', encoding='utf-8') as f:
@@ -200,22 +191,19 @@ class Resourcepack():
         except Exception:
             Logger.exception(f"Cannot dump the resourcepack mcmeta: \"{export_dir / "pack.mcmeta"}\"")
             
-        Event.emit(EventType.RESOURCEPACK_EXPORTING_DUMPED)
         Logger.info(f"Finished exporting: \"{export_dir}\"")
-        Event.emit(EventType.RESOURCEPACK_EXPORTED)
 
 
     def package(self, compresslevel: compresslevels = 5):
         
         export_dir = self.export_dir        
         package_name = self.package_name
-        package_path = PackWrapper.PACKAGE / f"{package_name}.zip"
+        package_path = PackWrapperPath.PACKAGE / f"{package_name}.zip"
         Logger.debug(f"The package destination path: \"{package_path}\"")
         
         # Packaging
         Logger.info("Packaging...")
         Logger.debug(f"The package path: \"{package_path}\"")
-        Event.emit(EventType.RESOURCEPACK_PACKAGE)
         
         try:
             with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED, compresslevel = compresslevel) as zipf:
@@ -228,5 +216,3 @@ class Resourcepack():
             Logger.exception(f"Cannot packaging the pack: \"{package_name}\"")
                 
         Logger.info(f"Finished packaging: \"{package_path}\"")
-
-        Event.emit(EventType.RESOURCEPACK_PACKAGED)

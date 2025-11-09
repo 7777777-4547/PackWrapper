@@ -1,7 +1,7 @@
 from .Resourcepack import Resourcepack
 from .HashCalculate import hashc_file
 from .Logger import Logger, LoggerType
-from .Utils import Event
+from .Utils import Event, EventInjector
 from .PropertiesManager import properties_read
 from . import StatusChecker
 from . import ScriptSystem
@@ -21,7 +21,7 @@ def init():
     
     global MAIN_PROPERTIES
     
-    MAIN_PROPERTIES = properties_read("packwrapper.json")
+    MAIN_PROPERTIES = properties_read("packwrapper")
     debug_mode = MAIN_PROPERTIES.get("packwrapper", {}).get("debug_mode", False)
     
     # Configure Logger

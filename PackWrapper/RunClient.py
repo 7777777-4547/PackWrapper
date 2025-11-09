@@ -1,5 +1,5 @@
 from .StatusChecker import check_configure_status
-from .PathEnum import PackWrapper
+from .Utils import PackWrapperPath
 from . import Dependency
 
 from warnings import deprecated
@@ -8,7 +8,7 @@ from warnings import deprecated
 @deprecated("Not done yet.")
 class RunClient:
     
-    game_dir = PackWrapper.GAME
+    game_dir = PackWrapperPath.GAME
     
     def __init__(self, java_args: str = "-Xmx2048m", **kwargs) -> None:        
         check_configure_status()

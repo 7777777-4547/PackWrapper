@@ -1,7 +1,7 @@
 {
 	"packwrapper": { "debug_mode": true },
 	"pack_info": {
-		"name": "examplepack",
+		"name": "examplepack", //a comment
 		"version": "1.0.0",
 		"verfmt": [0, 99],
 		"description": "test_${version}",

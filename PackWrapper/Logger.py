@@ -1,8 +1,7 @@
-from .PathEnum import PackWrapper
-
 from functools import wraps
-from enum import IntEnum
+from pathlib import Path
 from typing import Any
+from enum import IntEnum
 import logging
 import sys
 
@@ -33,6 +32,8 @@ class Logger:
     Logger class(configured logging),
     if you want to use its right format you need to use the `PackWrapper.config()` function firstly.
     '''
+    
+    ROOT = Path("./.packwrapper")
 
     class ID:
         
@@ -87,7 +88,7 @@ class Logger:
                datefmt = "%Y/%m/%d|%H:%M:%S"
                ):
         
-        filename = PackWrapper.ROOT / filename
+        filename = Logger.ROOT / filename
 
         logger = logging.getLogger()
         logger.setLevel(level)

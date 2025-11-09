@@ -55,11 +55,15 @@ def script_logger_config(debug_mode = False):
     
     change_configure_status(True)
 
-def merge_properties(script_config_filename: str | Path):
+def merge_properties(script_config_filename_without_suffix: str | Path):
     
     script_config = get_properties_main()
     
-    script_config_original = properties_read(script_config_filename)
+    try:
+        script_config_original = properties_read(script_config_filename_without_suffix)
+    except FileNotFoundError:
+        Logger.exception(f"Script config \"{script_config_filename_without_suffix}\" not found.")
+        raise
     
     for key, value in script_config_original.items():
         if isinstance(value, dict) and (key in script_config):
@@ -73,18 +77,18 @@ def merge_properties(script_config_filename: str | Path):
     
 @Logger.ID("ScriptSystem")
 def run_script(script_name: str | Path, timeout: float | None = None):
-        
+
     script_filename = Path(SCRIPT_DIR, f"{script_name}.py")
     script_config_filename = Path(SCRIPT_DIR, f"{script_name}.json")
     
     is_debug_mode = sys.gettrace() is not None
     
-    if script_filename.exists() and script_config_filename.exists():
+    if script_filename.exists():
         
         # Merge config
         Logger.info(f"Merging config for script \"{script_name}\"...")
 
-        script_config = merge_properties(script_config_filename)
+        script_config = merge_properties(Path(SCRIPT_DIR, script_name))
     
         # Run script
         Logger.info(f"Running script \"{script_name}\"...")
@@ -107,6 +111,6 @@ def run_script(script_name: str | Path, timeout: float | None = None):
             
 
     else:
-        Logger.exception(f"Script \"{script_name}\" not found or not configured correctly.")
+        Logger.exception(f"Script \"{script_name}\" not found.")
         
 
