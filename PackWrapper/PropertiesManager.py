@@ -1,10 +1,9 @@
 from pathlib import Path
 import json5
-import jsonc
 import json
 
 
-PROPERTIES_SUFFIX = [".json", ".jsonc", ".json5"]
+PROPERTIES_SUFFIX = [".json", ".json5"]
 
 def suffix_with(file_path_without_suffix: str | Path) -> Path:
     
@@ -26,16 +25,14 @@ def properties_read(file_path_without_suffix) -> dict:
     
     match file_suffix:
         case ".json":
-            return properties_read_without_comments(file_path)
-        case ".jsonc":
-            return properties_read_with_comments(file_path)
+            return properties_read_json(file_path)
         case ".json5":
             return properties_read_json5(file_path)
         case _:
             raise Exception(f"Unknown properties file format: \"{file_path}\"")
 
 
-def properties_read_without_comments(file_path) -> dict:
+def properties_read_json(file_path) -> dict:
     
     try:    
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -47,17 +44,6 @@ def properties_read_without_comments(file_path) -> dict:
         
         raise Exception(f"Cannot read the properties: \"{file_path}\"")
 
-def properties_read_with_comments(file_path) -> dict:
-    
-    try:    
-        with open(file_path, 'r', encoding='utf-8') as file:
-            properties = jsonc.load(file)
-                            
-        return dict(properties)
-    
-    except Exception:
-        
-        raise Exception(f"Cannot read the properties: \"{file_path}\"")
 
 def properties_read_json5(file_path) -> dict:
     
