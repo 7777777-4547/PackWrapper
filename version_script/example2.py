@@ -1,28 +1,21 @@
-import _init
-
-from PackWrapper.ScriptSystem import script_logger_config
+from PackWrapper.ScriptSystem import Script
 from PackWrapper.Logger import Logger
 import PackWrapper as PW
 
 import json
 
-
-
-config = json.loads(_init.get_config())
-script_logger_config(config.get("packwrapper", {}).get("debug_mode",False))
+config = Script.config()
 
 @PW.EventInjector(PW.Resourcepack, "package", PW.EventInjector.EventType.BEFORE)
-def test():
+def inject():
     Logger.info("injector test")
 
-test()
-
+inject()
 
 Logger.info("Reading config...")
-Logger.debug(json.dumps(config, indent=4))
+Logger.debug(json.dumps(dict(config), indent=4))
 packinfo = config["pack_info"]
 
 rp = PW.Resourcepack(**packinfo)
 rp.export(export_name = packinfo.get("export_name", None))
 rp.package()
-
