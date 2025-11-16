@@ -3,7 +3,7 @@ from .PropertiesManager import properties_read
 from .Logger import Logger, LoggerType
 
 from pathlib import Path
-from types import MappingProxyType
+from types import FrameType, MappingProxyType
 import subprocess
 import inspect
 import copy
@@ -123,7 +123,10 @@ class Script:
         
         _config = json.loads(Script._get_config())
         
-        Script._script_logger_config(_config.get("packwrapper", {}).get("debug_mode",False))
+        Script._script_logger_config(
+            frame = inspect.currentframe(),
+            debug_mode=_config.get("packwrapper", {}).get("debug_mode",False)
+        )
         
         return MappingProxyType(_config)
     
@@ -135,9 +138,8 @@ class Script:
         raise ValueError(f"No argument provided, it needs one")
     
     @staticmethod
-    def _script_logger_config(debug_mode = False):
+    def _script_logger_config(frame: FrameType | None, debug_mode = False):
     
-        frame = inspect.currentframe()
         if frame is None: 
             Logger.exception("No frame can be called back.")
             raise
