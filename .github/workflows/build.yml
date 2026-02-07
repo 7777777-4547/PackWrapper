@@ -31,7 +31,5 @@ jobs:
             title: "PackWrapper N${{ env.CURRENT_DATE }}"
             automatic_release_tag: "nightly"
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
-            files: |
-              "dist/packwrapper-*.whl"
-              "dist/packwrapper-*.tar.gz"
+            files: "dist/*"
             prerelease: true
