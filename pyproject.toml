@@ -1,0 +1,26 @@
+[project]
+name = "PackWrapper"
+dynamic = ["version"]
+description = ""
+requires-python = ">=3.13"
+dependencies = [
+    "annotated-types==0.7.0",
+    "json5==0.13.0",
+    "pydantic==2.12.5",
+    "pydantic-core==2.41.5",
+    "typing-extensions==4.15.0",
+    "typing-inspection==0.4.2",
+]
+
+[build-system]
+requires = ["setuptools", "wheel", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["PackWrapper*"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools_scm]

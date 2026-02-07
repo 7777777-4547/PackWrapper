@@ -1,6 +1,6 @@
 name: build-nightly
 
-on: 
+on:
   push:
     branches:
       - "main"
@@ -17,23 +17,21 @@ jobs:
         run: |
           CURRENT_DATE=$(date +%Y%m%d%H%M%S)
           echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
-      - name: Bump PackWrapper version
-        uses: jacobtomlinson/gha-find-replace@0.1.2
+      - name: Setup python 3.13
+        uses: actions/setup-python@v5
         with:
-          include: PackWrapper/__init__.py
-          find: 'packwrapper_version = "Dev"'
-          replace: 'packwrapper_version = "N${{ env.CURRENT_DATE }}"'
-      - name: Archive PackWrapper
-        uses: thedoctor0/zip-release@main
-        with:
-          path: ./PackWrapper
-          filename: "PackWrapper_N${{ env.CURRENT_DATE }}.zip"
-          exclusions: "*.pyc"
+            python-version: 3.13
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Build Artifacts
+        run: uv build
       - name: Release Artifacts
         uses: marvinpinto/action-automatic-releases@latest
         with:
             title: "PackWrapper N${{ env.CURRENT_DATE }}"
             automatic_release_tag: "nightly"
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
-            files: "PackWrapper_N${{ env.CURRENT_DATE }}.zip"
+            files: |
+              "dist/packwrapper-*.whl"
+              "dist/packwrapper-*.tar.gz"
             prerelease: true

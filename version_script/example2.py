@@ -1,16 +1,18 @@
 from PackWrapper.ScriptSystem import Script
 from PackWrapper.Logger import Logger
+from PackWrapper.Utils import EntryPoint, PackWrapperEntryPoint
 import PackWrapper as PW
 
 import json
 
+
 config = Script.config()
 
-@PW.EventInjector(PW.Resourcepack, "package", PW.EventInjector.EventType.BEFORE)
-def inject():
-    Logger.info("injector test")
+@EntryPoint("join", PackWrapperEntryPoint.RP_EXPORT_AFTER)
+def entry_test():
+    Logger.info("Entry test")
 
-inject()
+entry_test()
 
 Logger.info("Reading config...")
 Logger.debug(json.dumps(dict(config), indent=4))

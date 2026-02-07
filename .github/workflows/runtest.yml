@@ -1,26 +1,25 @@
 name: runtest
 
-on: 
+on:
   push:
     branches:
       - "main"
 
 jobs:
-    runtest:
-        runs-on: ubuntu-latest
+  runtest:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-            - name: Setup python 3.13
-              uses: actions/setup-python@v5
-              with:
-                  python-version: 3.13
-            - name: Get & Install requirements 
-              run: |
-                chmod +x packwrapper.sh
-                ./packwrapper.sh reqGen
-                ./packwrapper.sh reqInstl
-            - name: Run test
-              run: |
-                ./packwrapper.sh build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup python 3.13
+        uses: actions/setup-python@v5
+        with:
+            python-version: 3.13
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Setup PackWrapper
+        run: uv pip install .
+      - name: Run test
+        run: |
+          uv run python PackWrapperLauncher.py

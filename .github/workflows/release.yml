@@ -1,6 +1,6 @@
 name: build-release
 
-on: 
+on:
   push:
     tags:
       - 'v*'
@@ -16,21 +16,17 @@ jobs:
       - name: Get version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
-      - name: Bump PackWrapper version
-        uses: jacobtomlinson/gha-find-replace@0.1.2
+      - name: Setup python 3.13
+        uses: actions/setup-python@v5
         with:
-          include: PackWrapper/__init__.py
-          find: 'packwrapper_version = "Dev"'
-          replace: 'packwrapper_version = "${{ steps.get_version.outputs.VERSION }}"'
-      - name: Archive PackWrapper
-        uses: thedoctor0/zip-release@main
-        with:
-          path: ./PackWrapper
-          filename: "PackWrapper_${{ steps.get_version.outputs.VERSION }}.zip"
-          exclusions: "*.pyc"
+            python-version: 3.13
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Build Artifacts
+        run: uv build
       - name: Upload Release
         uses: AButler/upload-release-assets@v3.0.1
         with:
-          files: 'PackWrapper_${{ steps.get_version.outputs.VERSION }}.zip'
+          files: "dist/packwrapper-*.whl; dist/packwrapper-*.tar.gz"
           release-tag: ${{ steps.get_version.outputs.VERSION }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
