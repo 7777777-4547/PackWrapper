@@ -29,6 +29,6 @@ jobs:
       - name: Upload Release
         uses: AButler/upload-release-assets@v3.0.1
         with:
-          files: "dist/packwrapper-*.whl; dist/packwrapper-*.tar.gz"
+          files: "dist/*"
           release-tag: ${{ steps.get_version.outputs.VERSION }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
