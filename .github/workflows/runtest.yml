@@ -27,4 +27,4 @@ jobs:
       - name: Run test
         run: |
           cd ./testenv
-          uv run python test.py
+          uv run python run.py
