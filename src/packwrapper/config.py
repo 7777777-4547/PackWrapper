@@ -1,6 +1,8 @@
+from enum import StrEnum
 from pydantic import BaseModel, Field, ValidationError
 from pathlib import Path
 import json5
+import toml
 import json
 
 
@@ -31,7 +33,10 @@ class PWConfig(BaseModel):
 
 
 class ConfigManager:
-    PROPERTIES_SUFFIX = [".json", ".json5"]
+    class PROPERTIES_SUFFIX(StrEnum):
+        JSON = ".json"
+        JSON5 = ".json5"
+        TOML = ".toml"
 
     @classmethod
     def suffix_with(cls, file_path_without_suffix: str | Path) -> Path:
@@ -59,12 +64,23 @@ class ConfigManager:
         file_suffix = Path(file_path).suffix
 
         match file_suffix:
-            case ".json":
+            case cls.PROPERTIES_SUFFIX.JSON:
                 return cls.json_load(file_path)
-            case ".json5":
+            case cls.PROPERTIES_SUFFIX.JSON5:
                 return cls.json5_load(file_path)
+            case cls.PROPERTIES_SUFFIX.TOML:
+                return cls.toml_load(file_path)
             case _:
                 raise Exception(f'Unknown properties file format: "{file_path}"')
+
+    @classmethod
+    def dump_config(cls, config: dict):
+        raw_output = toml.dumps(config)
+        split_output = raw_output.split("\n")
+        for line in split_output:
+            if len(line) == 0:
+                continue
+            yield line
 
     @classmethod
     def validate_config(cls, config: dict):
@@ -94,6 +110,18 @@ class ConfigManager:
                 content = json5.load(file)
 
             return dict(content)
+
+        except Exception:
+            raise Exception(f'Cannot read the properties: "{file_path}"')
+
+    @classmethod
+    def toml_load(cls, file_path) -> dict:
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = toml.load(file)
+
+            return content
 
         except Exception:
             raise Exception(f'Cannot read the properties: "{file_path}"')

@@ -1,17 +1,18 @@
-from functools import wraps
+from functools import wraps, partial
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn, Callable
 from enum import IntEnum
 import threading
 import logging
 import sys
+import warnings
 
 COLORS = {
     "DEBUG": "\033[92m",  # Light Green
     "INFO": "\033[0m",  # Normal(Reset)
     "WARNING": "\033[93m",  # Light Yellow
     "ERROR": "\033[91m",  # Red
-    "CRITICAL": "\033[1;30;101m",  #
+    "CRITICAL": "\033[1;30;101m",  # Light Red(Background)
     "RESET": "\033[0m",  # Reset
 }
 
@@ -44,12 +45,12 @@ class Logger:
 
         @classmethod
         def get(cls):
-            return getattr(cls._local, '_id', None)
+            return getattr(cls._local, "_id", None)
 
         @classmethod
         def reset(cls):
-            if hasattr(cls._local, '_id'):
-                delattr(cls._local, '_id')
+            if hasattr(cls._local, "_id"):
+                delattr(cls._local, "_id")
 
         def __init__(self, _id: str | None = None):
             self.__id = _id
@@ -65,7 +66,7 @@ class Logger:
             return wrapper
 
     class CustomFormatter(logging.Formatter):
-        def format(self, record):
+        def format(self, record: logging.LogRecord):
 
             if Logger.ID.get() is None:
                 record.id = ""
@@ -75,7 +76,7 @@ class Logger:
             return super().format(record)
 
     class CustomFormatterColored(CustomFormatter):
-        def format(self, record):
+        def format(self, record: logging.LogRecord):
             message = super().format(record)
             return f"{COLORS.get(record.levelname, '')}{message}{COLORS['RESET']}"
 
@@ -89,7 +90,7 @@ class Logger:
         level=LoggerType.DEBUG,
         format="[%(asctime)s][%(threadName)s/%(levelname)s]: %(id)s%(message)s",
         datefmt="%Y/%m/%d|%H:%M:%S",
-        multi_thread=False
+        multi_thread=False,
     ):
 
         filename = Logger.ROOT / filename
@@ -109,29 +110,60 @@ class Logger:
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
 
+        warnings.showwarning = Logger._showwarning
+
     @staticmethod
     def get_current_level():
         return logging.getLogger().level
 
     @staticmethod
-    def _exception(msg, *args, exc_info: Any = True, **kwargs):
+    def _error(
+        msg, *args, exc_info: Any = None, stack_info: bool = True, **kwargs
+    ) -> NoReturn:
         """
         Log a message with severity 'ERROR' on the root logger, with exception
         information. If the logger has no handlers, basicConfig() is called to add
         a console handler with a pre-defined format.
 
-        The difference: Include `raise` to faster end the progarm if the program have the error.
+        The difference: Include `raise` to faster end the progarm.
         """
 
-        logging.exception(msg, *args, exc_info=exc_info, **kwargs)
+        logging.error(msg, *args, exc_info=exc_info, stack_info=stack_info, **kwargs)
 
         if exc_info and isinstance(exc_info, BaseException):
             raise exc_info from None
-        elif sys.exc_info()[0] is not None:
-            raise
+        else:
+            if sys.exc_info()[0] is not None:
+                raise
+            else:
+                raise RuntimeError(f"Logged error: {msg}")
 
     @staticmethod
-    def _warning(msg, *args, exc_info: Any = True, **kwargs):
+    def _exception(
+        msg, *args, exc_info: Any = None, stack_info: bool = True, **kwargs
+    ) -> NoReturn:
+        """
+        Log a message with severity 'ERROR' on the root logger, with exception
+        information. If the logger has no handlers, basicConfig() is called to add
+        a console handler with a pre-defined format.
+
+        The difference: Include `raise` to faster end the progarm.
+        """
+
+        logging.exception(
+            msg, *args, exc_info=exc_info, stack_info=stack_info, **kwargs
+        )
+
+        if exc_info and isinstance(exc_info, BaseException):
+            raise exc_info from None
+        else:
+            if sys.exc_info()[0] is not None:
+                raise
+            else:
+                raise RuntimeError(f"Logged exception: {msg}")
+
+    @staticmethod
+    def _warning(msg, *args, exc_info: Any = None, stack_info: bool = True, **kwargs):
         """
         Log a message with severity 'WARNING' on the root logger. If the logger has
         no handlers, call basicConfig() to add a console handler with a pre-defined
@@ -140,13 +172,44 @@ class Logger:
         The difference: Exception infomation will be logged.
         """
 
-        logging.warning(msg, *args, exc_info=exc_info, **kwargs)
+        logging.warning(msg, *args, exc_info=exc_info, stack_info=stack_info, **kwargs)
+
+    @staticmethod
+    def _showwarning(message, category, filename, lineno, file=None, line=None):
+        msg_ = f"{category.__name__}: {message}"
+        logging.warning(msg_, stack_info=True, stacklevel=4)
 
     critical = logging.critical
     fatal = logging.fatal
-    error = logging.error
+    error = _error
     exception = _exception
     warning = _warning
     warn = logging.warn
     info = logging.info
     debug = logging.debug
+
+    @staticmethod
+    def log(*msg, type_: LoggerType):
+        _log: Callable[..., NoReturn | None] | None = None
+        match type_:
+            case LoggerType.CRITICAL:
+                _log = Logger.critical
+            case LoggerType.FATAL:
+                _log = Logger.fatal
+            case LoggerType.ERROR:
+                _log = Logger.error
+            case LoggerType.WARNING:
+                _log = Logger.warning
+            case LoggerType.WARN:
+                _log = Logger.warn
+            case LoggerType.INFO:
+                _log = Logger.info
+            case LoggerType.DEBUG:
+                _log = Logger.debug
+            case LoggerType.NOTSET:
+                _log = partial(logging.log, level=LoggerType.NOTSET)
+            case _:
+                raise Exception(f"Unknown log type: {type_}")
+
+        for _msg in msg:
+            _log(_msg)

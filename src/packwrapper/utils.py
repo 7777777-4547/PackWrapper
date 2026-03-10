@@ -1,8 +1,8 @@
-from .Logger import Logger
+from .logger import Logger
 
 from functools import wraps
 from pathlib import Path
-from typing import Literal, TypeAlias, Callable
+from typing import Literal, TypeAlias, Callable, overload
 from enum import Enum, StrEnum
 import hashlib
 
@@ -21,6 +21,15 @@ class PathEnum(Enum):
 
     def __truediv__(self, other) -> Path:
         return self._value_ / other
+
+    def __rtruediv__(self, other) -> Path:
+        return Path(other) / self._value_
+
+    def __fspath__(self) -> str:
+        return str(self._value_)
+
+    def __class_getitem__(cls, item):
+        return cls(item)
 
 
 class PackWrapperPath(PathEnum):
@@ -55,9 +64,7 @@ class HashCalculator:
     ]
 
     @staticmethod
-    def hashc_file(
-        file_path: str, hash_type: HashCalculateType = "sha256"
-    ) -> str | None:
+    def hashc_file(file_path: str, hash_type: HashCalculateType = "sha256") -> str:
 
         try:
             hash_obj = hashlib.new(hash_type)
@@ -75,19 +82,30 @@ class HashCalculator:
 class EntryPoint:
     _entry_list: dict[str, list[Callable | tuple[Callable, tuple, dict]]] = {}
 
-    @classmethod
-    def join(cls, name: str, func: Callable, *args, **kwargs):
-        if args or kwargs:
-            cls._entry_list.setdefault(name, []).append((func, args, kwargs))
-            Logger.debug(f"EntryPoint \"{name}\" joined: {func.__name__}")
-        else:
-            cls._entry_list.setdefault(name, []).append(func)
-            Logger.debug(f"EntryPoint \"{name}\" joined: {func.__name__}")
+    class At(StrEnum):
+        NONE = ""
+        AFTER = "after"
+        BEFORE = "before"
 
     @classmethod
-    def create(cls, name: str):
-        Logger.debug(f"EntryPoint \"{name}\" created")
-        func_list = cls._entry_list.get(name)
+    def join(cls, name: str, location: At, func: Callable, *args, **kwargs):
+
+        name_with_location = f"{name}_{location}" if location != cls.At.NONE else name
+
+        if args or kwargs:
+            cls._entry_list.setdefault(name_with_location, []).append(
+                (func, args, kwargs)
+            )
+            Logger.debug(f'EntryPoint "{name_with_location}" joined: {func.__name__}')
+        else:
+            cls._entry_list.setdefault(name_with_location, []).append(func)
+            Logger.debug(f'EntryPoint "{name_with_location}" joined: {func.__name__}')
+
+    @classmethod
+    def create(cls, name: str, location: At):
+        name_with_location = f"{name}_{location}" if location != cls.At.NONE else name
+        Logger.debug(f'EntryPoint "{name_with_location}" created.')
+        func_list = cls._entry_list.get(name_with_location)
         if func_list is None:
             return
 
@@ -100,24 +118,40 @@ class EntryPoint:
                     func, args, kwargs = item
                     func(*args, **kwargs)
             except Exception as e:
-                Logger.exception(f"EntryPoint \"{name}\" failed: {e}")
+                Logger.exception(f'EntryPoint "{name}" failed: {e}')
 
-    def __init__(self, type_: Literal["join", "create"], name: str):
+    @overload
+    def __init__(self, type_: Literal["join", "create"], name: str): ...
+    @overload
+    def __init__(self, type_: Literal["join", "create"], name: str, location: At): ...
+
+    def __init__(
+        self, type_: Literal["join", "create"], name: str, location: At | None = None
+    ):
         self.type_ = type_
         self.name = name
+        self.location = location
 
     def __call__(self, func: Callable):
 
         @wraps(func)
         def wrapper(*args, **kwargs):
             if self.type_ == "join":
-                EntryPoint.join(self.name, func, *args, **kwargs)
+                if self.location is None:
+                    EntryPoint.join(self.name, self.At.BEFORE, func, *args, **kwargs)
+                    EntryPoint.join(self.name, self.At.AFTER, func, *args, **kwargs)
+                else:
+                    EntryPoint.join(self.name, self.location, func, *args, **kwargs)
             elif self.type_ == "create":
-                EntryPoint.create(f"{self.name}_before")
-                func(*args, **kwargs)
-                EntryPoint.create(f"{self.name}_after")
+                if self.location is not self.At.NONE:
+                    EntryPoint.create(self.name, self.At.BEFORE)
+                    func(*args, **kwargs)
+                    EntryPoint.create(self.name, self.At.AFTER)
+                else:
+                    EntryPoint.create(self.name, self.At.NONE)
             else:
                 raise ValueError(f"Invalid entry point type: '{self.type_}'")
+
         return wrapper
 
 

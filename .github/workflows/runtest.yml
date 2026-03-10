@@ -26,4 +26,5 @@ jobs:
           uv pip install .
       - name: Run test
         run: |
-          uv run python PackWrapperLauncher.py
+          cd ./testenv
+          uv run python test.py

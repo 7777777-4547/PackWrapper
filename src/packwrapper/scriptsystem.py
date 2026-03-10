@@ -1,7 +1,7 @@
-from PackWrapper.Utils import PackWrapperPath
-from .StatusChecker import change_configure_status
-from .Config import ConfigManager
-from .Logger import Logger, LoggerType
+#from .lrucache import FileLRUCache
+from .config import ConfigManager
+from .logger import Logger, LoggerType
+from .utils import PackWrapperPath
 
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -13,12 +13,10 @@ import copy
 import json
 import time
 import sys
-import os
 
 
 SCRIPT_DIR: Path | str
 MAIN_CONFIG: dict = {}
-MULTI_TREAD = False
 
 
 def get_main_config():
@@ -47,7 +45,6 @@ def merge_config(script_config_filename_without_suffix: str | Path) -> dict:
         Logger.exception(
             f'Script config "{script_config_filename_without_suffix}" not found.'
         )
-        raise
 
     for key, value in script_config_original.items():
         if isinstance(value, dict) and (key in script_config):
@@ -62,7 +59,12 @@ def merge_config(script_config_filename_without_suffix: str | Path) -> dict:
 
 
 @Logger.ID("ScriptSystem")
-def run_script(script_name: str | Path, timeout: float | None = None, multi_thread=False):
+def run_script(
+    script_name: str | Path,
+    timeout: float | None = None,
+    cache_size=32,
+    multi_thread=False,
+):
 
     def is_debugging():
         if sys.gettrace() is not None:
@@ -76,16 +78,18 @@ def run_script(script_name: str | Path, timeout: float | None = None, multi_thre
 
         return False
 
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    """
+    project_root = str(Path(__file__).parent.parent.resolve())
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
+    """
 
-    script_filename = Path(SCRIPT_DIR, f"{script_name}.py")
-    # script_config_filename = Path(SCRIPT_DIR, f"{script_name}.json")
+    Logger.debug(SCRIPT_DIR)
+    script_file = Path(SCRIPT_DIR, f"{script_name}.py")
 
     is_debug_mode = is_debugging()
 
-    if script_filename.exists():
+    if script_file.exists():
         # Merge config
         Logger.info(f'Merging config for script "{script_name}"...')
 
@@ -96,14 +100,24 @@ def run_script(script_name: str | Path, timeout: float | None = None, multi_thre
 
         script_config = json.dumps(script_config)
 
-        cmd = [sys.executable, script_filename, script_config, str(multi_thread)]
+        cmd = [
+            sys.executable,
+            script_file,
+            script_config,
+            str(cache_size),
+            "--multi_thread" if multi_thread else "",
+        ]
 
         try:
             start_time = time.perf_counter()
             subprocess.run(cmd, timeout=timeout if not is_debug_mode else None)
             end_time = time.perf_counter()
             spend_time = end_time - start_time
-            spend_time = f"{spend_time:.2f}s" if spend_time > 10 else f"{spend_time*1000:.0f}ms"
+            spend_time = (
+                f"{spend_time:.2f}s"
+                if spend_time > 10
+                else f"{spend_time * 1000:.0f}ms"
+            )
             Logger.info(f'Script "{script_name}" finished. ({spend_time})')
 
         except subprocess.TimeoutExpired:
@@ -117,19 +131,32 @@ def run_script(script_name: str | Path, timeout: float | None = None, multi_thre
 
 
 @Logger.ID("ScriptSystem")
-def run_script_multiple(scripts: list[str]):
+def run_script_multiple(scripts: list[str], cache_size_total: int | None = None):
 
     Logger.info("Running multiple scripts...")
 
-    _run_script = partial(run_script, multi_thread=True)
+    cache_size = (
+        cache_size_total / len(scripts)
+        if cache_size_total is not None
+        else 32
+        if len(scripts) * 32 < 1024
+        else 1024 / len(scripts)
+    )
+
+    _run_script = partial(run_script, cache_size=cache_size, multi_thread=True)
 
     start_time = time.perf_counter()
     with ThreadPoolExecutor() as executor:
         executor.map(_run_script, scripts)
     end_time = time.perf_counter()
+
     spend_time = end_time - start_time
-    spend_time = f"{spend_time:.2f}s" if spend_time > 10 else f"{spend_time*1000:.0f}ms"
+    spend_time = (
+        f"{spend_time:.2f}s" if spend_time > 10 else f"{spend_time * 1000:.0f}ms"
+    )
+
     Logger.info(f"All scripts finished. ({spend_time})")
+
 
 class Script:
     @staticmethod
@@ -143,6 +170,8 @@ class Script:
             multi_thread=Script._get_multi_thread_status(),
         )
 
+        # FileLRUCache.set_max_size(Script._get_cache_size())
+
         return MappingProxyType(_config)
 
     @staticmethod
@@ -153,11 +182,18 @@ class Script:
         raise ValueError("No argument provided, it needs one")
 
     @staticmethod
-    def _get_multi_thread_status() -> bool:
+    def _get_cache_size() -> int:
         args = sys.argv[1:]
         if len(args) >= 2:
-            return bool(args[1])
+            return int(args[1])
         raise ValueError("No second argument provided, it needs one")
+
+    @staticmethod
+    def _get_multi_thread_status() -> bool:
+        args = sys.argv[1:]
+        if len(args) >= 3:
+            return True if args[2] == "--multi_thread" else False
+        raise ValueError("No third argument provided, it needs one")
 
     @staticmethod
     def _script_logger_config(
@@ -168,11 +204,9 @@ class Script:
 
         if frame is None:
             Logger.exception("No frame can be called back.")
-            raise
         else:
             if frame.f_back is None:
                 Logger.exception("No frame can be called back.")
-                raise
             else:
                 caller_filename = Path(frame.f_back.f_code.co_filename).stem
 
@@ -189,5 +223,3 @@ class Script:
             level=LoggerType.INFO,
             multi_thread=multi_thread,
         )
-
-        change_configure_status(True)

@@ -1,10 +1,10 @@
+from .logger import Logger
+
 from collections import OrderedDict
 from typing import Callable, Iterable, Any
 from enum import IntEnum
 import copy
 import re
-
-from PackWrapper.Logger import Logger
 
 
 class Task:

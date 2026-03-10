@@ -7,7 +7,9 @@
 		"description": "test_${version}",
 		"source_dir": "resourcepacktest",
 		"icon_path": "resourcepacktest_icon.png",
-		"license_path": "LICENSE",
+		"license_path": "../LICENSE",
+		"icon": "resourcepacktest_icon.png",
+		"license": "../LICENSE",
 
 		"package_name": "${name}-${version}"
 	}
