@@ -84,7 +84,7 @@ def run_script(
         sys.path.insert(0, project_root)
     """
 
-    Logger.debug(SCRIPT_DIR)
+    Logger.debug(f"Scripts directory: {SCRIPT_DIR}")
     script_file = Path(SCRIPT_DIR, f"{script_name}.py")
 
     is_debug_mode = is_debugging()
