@@ -314,7 +314,7 @@ class Resourcepack(Content):
         if extra_mcmeta is not None:
             self.pack_mcmeta.update(extra_mcmeta)
         if self.icon is not None:
-            self.include_file(self.icon)
+            self.include_file(self.icon, self.export_dir / "pack.png")
         if self.license is not None:
             self.include_file(self.license)
 
