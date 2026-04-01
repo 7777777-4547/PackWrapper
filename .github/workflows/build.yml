@@ -31,7 +31,7 @@ jobs:
         uses: marvinpinto/action-automatic-releases@latest
         with:
             title: "PackWrapper N${{ env.CURRENT_DATE }}"
-            automatic_release_tag: "nightly"
+            automatic_release_tag: "nightly-${{ env.CURRENT_DATE }}"
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
             files: "dist/*"
             prerelease: true
