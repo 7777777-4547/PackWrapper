@@ -7,9 +7,11 @@ from .plugin import Plugin
 from .utils import HashCalculator
 from . import scriptsystem as ScriptSystem
 
+import logging
 import toml
 import copy
 
+logging.getLogger("PIL").setLevel(logging.WARNING)
 
 try:
     from importlib.metadata import version, PackageNotFoundError
