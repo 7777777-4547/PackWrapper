@@ -17,14 +17,7 @@ jobs:
           fetch-depth: 0
       - name: Get Time
         run: |
-          if [ -f "version.txt" ]; then
-            CURRENT_DATE=$(cat version.txt)
-            echo "Using existing version: $CURRENT_DATE"
-          else
-            CURRENT_DATE=$(date +%Y%m%d%H%M%S)
-            echo "Creating initial version: $CURRENT_DATE"
-            echo "$CURRENT_DATE" > version.txt
-          fi
+          CURRENT_DATE=$(date +%Y%m%d%H%M%S)
           echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
       - name: Setup python 3.13
         uses: actions/setup-python@v5
@@ -38,7 +31,7 @@ jobs:
         uses: marvinpinto/action-automatic-releases@latest
         with:
             title: "PackWrapper N${{ env.CURRENT_DATE }}"
-            automatic_release_tag: "nightly-${{ env.CURRENT_DATE }}"
+            automatic_release_tag: "nightly"
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
             files: "dist/*"
             prerelease: true
