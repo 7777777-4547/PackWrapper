@@ -17,7 +17,14 @@ jobs:
           fetch-depth: 0
       - name: Get Time
         run: |
-          CURRENT_DATE=$(date +%Y%m%d%H%M%S)
+          if [ -f "version.txt" ]; then
+            CURRENT_DATE=$(cat version.txt)
+            echo "Using existing version: $CURRENT_DATE"
+          else
+            CURRENT_DATE=$(date +%Y%m%d%H%M%S)
+            echo "Creating initial version: $CURRENT_DATE"
+            echo "$CURRENT_DATE" > version.txt
+          fi
           echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
       - name: Setup python 3.13
         uses: actions/setup-python@v5
