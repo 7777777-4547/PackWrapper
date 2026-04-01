@@ -1,8 +1,0 @@
-[pack_info]
-name = "examplepack4" # a comment
-version = "1.0.4"
-verfmt = [0, 99]
-description = "test3"
-source_dir = "resourcepacktest"
-
-package_name = "${name}_${version}"

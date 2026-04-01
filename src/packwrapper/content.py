@@ -1,14 +1,18 @@
+from .config import ConfigManager
 from .logger import Logger
+from .plugin import Plugin
 from .utils import PackWrapperPath, EntryPoint
 
+from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
 from pathlib import Path
-from typing import Callable, Literal, overload
+from typing import Any, Iterator, Literal, overload
 from string import Template
 from enum import StrEnum
 from abc import ABC, abstractmethod
 from PIL import Image
+from io import BytesIO
 import zipfile
-import asyncio
 import shutil
 import json
 
@@ -21,7 +25,6 @@ class ContentEntryPoint(StrEnum):
 
 
 class Content(ABC):
-    @abstractmethod
     def __init__(
         self,
         source_dir: Path,
@@ -52,8 +55,7 @@ class Content(ABC):
         self.package_file = PackWrapperPath.PACKAGE / f"{self.package_name}.zip"
         self.compresslevel = compresslevel
 
-        self.plugins = []
-        self.plugins_namelist = []
+        self.plugins: dict[str, Plugin] = {}
 
     @abstractmethod
     def __enter__(self):
@@ -61,30 +63,36 @@ class Content(ABC):
 
     @abstractmethod
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            Logger.error(f"Error occurred during content processing: {exc_val}")
         return False
 
     def get_source_dir(self) -> Path:
         """
-        Get the source directory.
+        Get the content's source directory.
         """
         return self.source_dir
 
     def get_export_dir(self) -> Path:
         """
-        Get the export directory.
+        Get the content's export directory.
         """
         return self.export_dir
 
-    def get_files(self) -> set[Path]:
+    def get_files(self, include_custom=False) -> set[Path]:
         """
-        Get all files in the source directory by default.
+        Get all files in the content's source directory by default.
         Using `include_files`/`include_file` or `exclude_files`/`exclude_file` to modify the files.
+        Args:
+            include_custom (bool): whether to include custom files (included by `include_file`/`include_files`).
         """
-        return self.files
+        return (
+            {*self.files, *self.custom_files.keys()} if include_custom else self.files
+        )
 
     def include_files(self, files: dict[Path, Path]):
         """
-        Include files to the export directory.
+        Include files to the content's export directory.
         Args:
             files (dict[Path, Path]): key is the source file (relative to the source directory), value is the destination file (relative to the export directory).
         """
@@ -97,10 +105,10 @@ class Content(ABC):
 
     def include_file(self, src_file: Path, dst_file: Path | None = None):
         """
-        Include file to the export directory.
+        Include file to the content's export directory.
         Args:
-            file (Path): the source file (relative to the source directory).
-            custom (Path): the destination file (relative to the export directory).
+            file (Path): the source file (relative to the content's source directory).
+            custom (Path): the destination file (relative to the content's export directory).
         """
         self.custom_files.update(
             {
@@ -114,7 +122,7 @@ class Content(ABC):
 
     def exclude_files(self, files: list[Path]):
         """
-        Exclude files from the export directory (relative to the source/export directory).
+        Exclude files from the content's export directory (relative to the content's source/export directory).
         Args:
             files (list[Path]): the files to exclude.
         """
@@ -128,11 +136,11 @@ class Content(ABC):
 
     def exclude_file(self, file: Path):
         """
-        Exclude file from the export directory (relative to the source/export directory).
+        Exclude file from the content's export directory (relative to the content's source/export directory).
         Args:
             file (Path): the file to exclude.
         """
-        self.files.remove(file)
+        self.files.discard(file)
         if file in self.custom_files:
             del self.custom_files[file]
 
@@ -141,13 +149,13 @@ class Content(ABC):
         files: list[Path] | set[Path], base_dir: Path, rebase_dir: Path
     ) -> dict[Path, Path]:
         """
-        Relative to files from the source directory to the export directory.
+        Relative to files from the base directory(`base_dir`) to the rebase directory(`rebase_dir`).
         Args:
             files (list[Path] | set[Path]): the files to rebase.
             base_dir (Path): the base directory.
             rebase_dir (Path): the rebase directory.
         Returns:
-            dict[Path, Path]: key is the source file (relative to the source directory), value is the destination file (relative to the export directory).
+            dict[Path, Path]: key is the source file (relative to the base directory(`base_dir`)), value is the destination file (relative to the rebase directory(`rebase_dir`).
         """
 
         def rebase_check(file: Path):
@@ -165,13 +173,13 @@ class Content(ABC):
     @staticmethod
     def relative_file(file: Path, base_dir: Path, rebase_dir: Path) -> Path:
         """
-        Relative to file from the source directory to the export directory.
+        Relative to file from the base directory(`base_dir`) to the rebase directory(`rebase_dir`).
         Args:
             file (Path): the file to rebase.
             base_dir (Path): the base directory.
             rebase_dir (Path): the rebase directory.
         Returns:
-            Path: the destination file (relative to the export directory).
+            Path: the destination file (relative to the rebase directory).
         """
         return rebase_dir / file.relative_to(base_dir)
 
@@ -187,6 +195,9 @@ class Content(ABC):
         ContentEntryPoint.EXPORT_CLEAN,
     )
     def export_clean(self):
+        """
+        Clean the content's export directory.
+        """
         if self.export_dir.exists():
             Logger.warning(
                 f'The export directory "{self.export_dir}" is already exists, it will be deleted and recreated.',
@@ -199,6 +210,9 @@ class Content(ABC):
         ContentEntryPoint.EXPORT_COPY,
     )
     def export_copy(self):
+        """
+        Copy the content's files to the export directory.
+        """
         self.dest_files: set[Path] = set()
         for file, dest_file in {
             **self.relative_files(self.files, self.source_dir, self.export_dir),
@@ -217,6 +231,9 @@ class Content(ABC):
         ContentEntryPoint.PACKAGE,
     )
     def package(self):
+        """
+        Package the content.
+        """
         try:
             with zipfile.ZipFile(
                 self.package_file,
@@ -233,6 +250,39 @@ class Content(ABC):
             Logger.debug(f"{self.package_file}")
             Logger.exception(f'Cannot packaging the pack: "{self.package_name}"')
 
+    @EntryPoint(
+        "create",
+        ContentEntryPoint.INIT_PLUGINS,
+    )
+    def init_plugins(self):
+        """
+        Initialize the content's plugins.
+        """
+        if self.plugins:
+            Logger.info(f"Plugins registered: {list(self.plugins.keys())}")
+            for plugin in self.plugins.values():
+                plugin()
+        else:
+            Logger.info("No plugins registered, skipping")
+
+    def register_plugin(self, plugin: Plugin):
+        """
+        Register a plugin.
+        Args:
+            plugin (Plugin): the plugin to register.
+        """
+        if callable(plugin):
+            self.plugins[plugin.name] = plugin
+
+    def register_plugins(self, *plugin: Plugin):
+        """
+        Register plugins.
+        Args:
+            plugins (list[Callable]): the plugins to register.
+        """
+        for plugin_ in plugin:
+            self.register_plugin(plugin_)
+
     @abstractmethod
     def build(self):
         """
@@ -242,37 +292,6 @@ class Content(ABC):
         self.export_clean()
         self.export_copy()
         self.package()
-
-    @EntryPoint(
-        "create",
-        ContentEntryPoint.INIT_PLUGINS,
-    )
-    def init_plugins(self):
-        """
-        Initialize the plugins.
-        """
-        Logger.info(f"Plugins registered: {self.plugins_namelist}")
-        for plugin in self.plugins:
-            plugin()
-
-    def register_plugin(self, plugin: Callable):
-        """
-        Register a plugin.
-        Args:
-            plugin (Callable): the plugin to register.
-        """
-        if callable(plugin):
-            self.plugins.append(plugin)
-            self.plugins_namelist.append(type(plugin).__name__)
-
-    def register_plugins(self, *plugin: Callable):
-        """
-        Register plugins.
-        Args:
-            plugins (list[Callable]): the plugins to register.
-        """
-        for plugin_ in plugin:
-            self.register_plugin(plugin_)
 
 
 class ResourcepackEntryPoint(StrEnum):
@@ -295,9 +314,11 @@ class Resourcepack(Content):
         license: Path | None = None,
         extra_mcmeta: dict | None = None,
         package_name: str | None = None,
+        opimization: bool = True,
         compresslevel: int = 5,
         **extra_properties,
     ):
+
         super().__init__(
             source_dir,
             name,
@@ -305,6 +326,8 @@ class Resourcepack(Content):
             compresslevel,
             **extra_properties,
         )
+        self.optimization = opimization
+
         self.description = self.template_substitute(description, **self.properties)
         self.verfmt = verfmt
         self.icon = icon
@@ -323,44 +346,6 @@ class Resourcepack(Content):
         if not isinstance(verfmt, (int, float)) and verfmt[0] > verfmt[-1]:
             Logger.exception(f"The verfmt is invalid: {verfmt}")
 
-        def verfmt_spliter(num: int | float):
-            parts = str(num).split(".")
-            parts = tuple(int(part) for part in parts)
-            return parts if len(parts) != 1 else (parts[0], 0)
-
-        def verfmt_standardizer(
-            verfmt_min: int | float,
-            verfmt_max: int | float,
-            mode: Literal["legacy", "compatible", "default"],
-        ) -> dict:
-            match mode:
-                case "legacy":
-                    verfmt_min, verfmt_max = map(int, [verfmt_min, verfmt_max])
-                    return (
-                        {"pack_format": verfmt_min}
-                        if (verfmt_min == verfmt_max)
-                        else {
-                            "pack_format": verfmt_min,
-                            "supported_formats": [verfmt_min, verfmt_max],
-                        }
-                    )
-                case "compatible":
-                    return {
-                        "pack_format": int(verfmt_min),
-                        "supported_formats": [int(verfmt_min), int(verfmt_max)],
-                        "min_format": verfmt_spliter(verfmt_min),
-                        "max_format": verfmt_spliter(verfmt_max),
-                    }
-                case "default":
-                    return {
-                        "min_format": verfmt_spliter(verfmt_min),
-                        "max_format": verfmt_spliter(verfmt_max),
-                    }
-                case _:
-                    Logger.exception(
-                        f'The mode "{mode}" is not supported!', exc_info=ValueError
-                    )
-
         self.verfmt_min = verfmt if isinstance(verfmt, (int, float)) else verfmt[0]
         self.verfmt_max = verfmt if isinstance(verfmt, (int, float)) else verfmt[-1]
 
@@ -368,7 +353,7 @@ class Resourcepack(Content):
             self.verfmt_min = int(self.verfmt_min)
             self.verfmt_max = int(self.verfmt_max)
             self.pack_mcmeta.get("pack", {}).update(
-                verfmt_standardizer(self.verfmt_min, self.verfmt_max, "legacy")
+                self.verfmt_standardizer(self.verfmt_min, self.verfmt_max, "legacy")
             )
         elif (self.verfmt_min < 65) and (self.verfmt_max >= 65):
             if self.verfmt_min < 15:
@@ -379,12 +364,55 @@ class Resourcepack(Content):
                 )
                 self.verfmt_min = 15
             self.pack_mcmeta.get("pack", {}).update(
-                verfmt_standardizer(self.verfmt_min, self.verfmt_max, "compatible")
+                self.verfmt_standardizer(self.verfmt_min, self.verfmt_max, "compatible")
             )
         else:
             self.pack_mcmeta.get("pack", {}).update(
-                verfmt_standardizer(self.verfmt_min, self.verfmt_max, "default")
+                self.verfmt_standardizer(self.verfmt_min, self.verfmt_max, "default")
             )
+
+    @staticmethod
+    def verfmt_spliter(num: int | float):
+        parts = str(num).split(".")
+        parts = tuple(int(part) for part in parts)
+        return parts if len(parts) != 1 else (parts[0], 0)
+
+    @staticmethod
+    def verfmt_standardizer(
+        verfmt_min: int | float,
+        verfmt_max: int | float,
+        mode: Literal["legacy", "compatible", "default"],
+    ) -> dict:
+
+        verfmt_spliter = Resourcepack.verfmt_spliter
+
+        match mode:
+            case "legacy":
+                verfmt_min, verfmt_max = map(int, [verfmt_min, verfmt_max])
+                return (
+                    {"pack_format": verfmt_min}
+                    if (verfmt_min == verfmt_max)
+                    else {
+                        "pack_format": verfmt_min,
+                        "supported_formats": [verfmt_min, verfmt_max],
+                    }
+                )
+            case "compatible":
+                return {
+                    "pack_format": int(verfmt_min),
+                    "supported_formats": [int(verfmt_min), int(verfmt_max)],
+                    "min_format": verfmt_spliter(verfmt_min),
+                    "max_format": verfmt_spliter(verfmt_max),
+                }
+            case "default":
+                return {
+                    "min_format": verfmt_spliter(verfmt_min),
+                    "max_format": verfmt_spliter(verfmt_max),
+                }
+            case _:
+                Logger.exception(
+                    f'The mode "{mode}" is not supported!', exc_info=ValueError
+                )
 
     def __enter__(self):
         return super().__enter__()
@@ -402,6 +430,46 @@ class Resourcepack(Content):
                 f'Cannot dump the resourcepack mcmeta: "{self.export_dir / "pack.mcmeta"}"'
             )
 
+    @EntryPoint(
+        "create",
+        ContentEntryPoint.PACKAGE,
+    )
+    def package(self):
+        """
+        Package the content.
+        """
+        try:
+            with zipfile.ZipFile(
+                self.package_file,
+                "w",
+                zipfile.ZIP_DEFLATED,
+                compresslevel=self.compresslevel,
+            ) as zipf:
+                for file in (self.export_dir).rglob("*"):
+                    if file.is_file():
+                        relative_file = file.relative_to(self.export_dir)
+
+                        if file.suffix.lower() != ".png" or not self.optimization:
+                            zipf.write(file, relative_file)
+                        else:
+                            _buffer = BytesIO()
+
+                            image = Image.open(file).convert("RGBA")
+                            image_dpi = image.info.get("dpi", (72, 72))
+                            image_colors_len = len(Counter(image.get_flattened_data()))
+
+                            if image_colors_len <= 256:
+                                image = image.convert(
+                                    "P",
+                                    palette=Image.Palette.ADAPTIVE,
+                                    colors=image_colors_len,
+                                )
+                            image.save(_buffer, "PNG", dpi=image_dpi)
+                            zipf.writestr(relative_file.as_posix(), _buffer.getvalue())
+
+        except Exception:
+            Logger.debug(f"{self.package_file}")
+            Logger.exception(f'Cannot packaging the pack: "{self.package_name}"')
 
     def build(self):
         """
@@ -415,15 +483,33 @@ class Resourcepack(Content):
         Logger.info(f'Finished exporting: "{self.export_dir}"')
         Logger.info("Packaging...")
         Logger.debug(f'The package path: "{self.package_file}"')
+        if self.optimization:
+            Logger.info("Optimization is enabled.")
         self.package()
         Logger.info(f'Finished packaging: "{self.package_file}"')
 
-    @staticmethod
-    def get_as_images_async(files: list[Path]):
+    def get_tex_files(self) -> Iterator[Path]:
+        for file in self.files:
+            if file.suffix.lower() != ".png":
+                continue
+            yield file.absolute()
 
-        async def _get_as_image(file: Path):
-            image = await asyncio.to_thread(Image.open, file)
-            return image
+    def get_tex_files_mapping(self) -> Iterator[tuple[Path, dict[str, Any]]]:
+        for file in self.get_tex_files():
+            _file_mcmeta = (file.parent / f"{file.name}.mcmeta").absolute()
+            file_mcmeta = _file_mcmeta if _file_mcmeta in self.files else None
+            mcmeta = ConfigManager.json_load(file_mcmeta) if file_mcmeta else {}
+            yield file, {"mcmeta": file_mcmeta, "animated": "animation" in mcmeta}
 
-        result = asyncio.gather(*[_get_as_image(file) for file in files])
-        return result
+    @overload
+    def get_textures(self) -> list[Image.Image]: ...
+
+    @overload
+    def get_textures(self, files: list[Path] | None = None) -> list[Image.Image]: ...
+
+    def get_textures(self, files: list[Path] | None = None):
+        def _load_image(file: Path):
+            return Image.open(file).copy()
+
+        with ThreadPoolExecutor() as executor:
+            return list(executor.map(_load_image, files or list(self.get_tex_files())))

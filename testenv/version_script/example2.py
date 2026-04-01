@@ -1,6 +1,6 @@
 from packwrapper.scriptsystem import Script
 from packwrapper.logger import Logger
-from packwrapper.utils import EntryPoint, PackWrapperEntryPoint
+from packwrapper.utils import EntryPoint
 import packwrapper as PW
 
 import json
@@ -8,7 +8,7 @@ import json
 
 config = Script.config()
 
-@EntryPoint("join", PackWrapperEntryPoint.RP_EXPORT_AFTER)
+@EntryPoint("join", PW.content.ContentEntryPoint.EXPORT_COPY, EntryPoint.At.AFTER)
 def entry_test():
     Logger.info("Entry test")
 

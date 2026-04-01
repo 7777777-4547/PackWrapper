@@ -1,0 +1,26 @@
+[example.pack_info]
+name = "examplepack2"
+version = "1.0.1"
+verfmt= [0, 99]
+description = "test"
+source_dir = "resourcepacktest"
+
+package_name = "${name}_${version}"
+
+[example2.pack_info]
+name = "examplepack3" # a comment
+version = "1.0.2"
+verfmt = [0, 99]
+description = "test2"
+source_dir = "resourcepacktest"
+
+package_name = "${name}_${version}"
+
+[example3.pack_info]
+name = "examplepack4" # a comment
+version = "1.0.4"
+verfmt = [0, 99]
+description = "test3"
+source_dir = "resourcepacktest"
+
+package_name = "${name}_${version}"

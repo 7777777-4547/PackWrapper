@@ -1,7 +1,9 @@
+from .scriptsystem import Script
 from .lrucache import FileLRUCache, ImageLRUCache
 from .content import Resourcepack
 from .logger import Logger, LoggerType
 from .config import ConfigManager
+from .plugin import Plugin
 from .utils import HashCalculator
 from . import scriptsystem as ScriptSystem
 
@@ -66,10 +68,12 @@ def logout_config_formatted(config: dict):
 
 __all__ = [
     "Resourcepack",
+    "Plugin",
     "HashCalculator",
     "FileLRUCache",
     "ImageLRUCache",
-    "ScriptSystem",
     "Logger",
     "LoggerType",
+    "ScriptSystem",
+    "Script",
 ]

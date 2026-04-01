@@ -1,4 +1,4 @@
-#from .lrucache import FileLRUCache
+# from .lrucache import FileLRUCache
 from .config import ConfigManager
 from .logger import Logger, LoggerType
 from .utils import PackWrapperPath
@@ -15,20 +15,38 @@ import time
 import sys
 
 
-SCRIPT_DIR: Path | str
+SCRIPT_DIR: str | Path
 MAIN_CONFIG: dict = {}
+SCRIPTS_CONFIG: dict | None = None
 
 
 def get_main_config():
     return copy.deepcopy(MAIN_CONFIG)
 
 
+def get_script_config(script_name: str | Path):
+    script_name = Path(script_name).relative_to(SCRIPT_DIR)
+    if SCRIPTS_CONFIG is None:
+        return None
+    return SCRIPTS_CONFIG.get(script_name.as_posix(), None)
+
+
 @Logger.ID("ScriptSystem")
-def init(script_dir: Path | str, main_properties: dict):
+def init(
+    script_dir: Path | str,
+    main_properties: dict,
+    scripts_config_filename_without_suffix: str | Path | None = None,
+):
     global SCRIPT_DIR
     SCRIPT_DIR = script_dir
     global MAIN_CONFIG
     MAIN_CONFIG = main_properties
+
+    if scripts_config_filename_without_suffix is not None:
+        global SCRIPTS_CONFIG
+        SCRIPTS_CONFIG = ConfigManager.read_config(
+            scripts_config_filename_without_suffix
+        )
 
     Logger.info("ScriptSystem initialized.")
 
@@ -36,17 +54,21 @@ def init(script_dir: Path | str, main_properties: dict):
 def merge_config(script_config_filename_without_suffix: str | Path) -> dict:
 
     script_config = get_main_config()
+    script_config_overlay = get_script_config(
+        Path(script_config_filename_without_suffix)
+    )
 
-    try:
-        script_config_original = ConfigManager.read_config(
-            script_config_filename_without_suffix
-        )
-    except FileNotFoundError:
-        Logger.exception(
-            f'Script config "{script_config_filename_without_suffix}" not found.'
-        )
+    if script_config_overlay is None:
+        try:
+            script_config_overlay = ConfigManager.read_config(
+                script_config_filename_without_suffix
+            )
+        except FileNotFoundError:
+            Logger.exception(
+                f'Script config "{script_config_filename_without_suffix}" is not found.'
+            )
 
-    for key, value in script_config_original.items():
+    for key, value in script_config_overlay.items():
         if isinstance(value, dict) and (key in script_config):
             for subkey, subvalue in value.items():
                 script_config[key][subkey] = subvalue
@@ -62,7 +84,7 @@ def merge_config(script_config_filename_without_suffix: str | Path) -> dict:
 def run_script(
     script_name: str | Path,
     timeout: float | None = None,
-    cache_size=32,
+    cache_size: float = 32,
     multi_thread=False,
 ):
 
@@ -112,10 +134,9 @@ def run_script(
             start_time = time.perf_counter()
             subprocess.run(cmd, timeout=timeout if not is_debug_mode else None)
             end_time = time.perf_counter()
-            spend_time = end_time - start_time
             spend_time = (
                 f"{spend_time:.2f}s"
-                if spend_time > 10
+                if (spend_time := end_time - start_time) > 10
                 else f"{spend_time * 1000:.0f}ms"
             )
             Logger.info(f'Script "{script_name}" finished. ({spend_time})')
@@ -149,13 +170,13 @@ def run_script_multiple(scripts: list[str], cache_size_total: int | None = None)
     with ThreadPoolExecutor() as executor:
         executor.map(_run_script, scripts)
     end_time = time.perf_counter()
-
-    spend_time = end_time - start_time
     spend_time = (
-        f"{spend_time:.2f}s" if spend_time > 10 else f"{spend_time * 1000:.0f}ms"
+        f"{spend_time:.2f}s"
+        if (spend_time := end_time - start_time) > 10
+        else f"{spend_time * 1000:.0f}ms"
     )
 
-    Logger.info(f"All scripts finished. ({spend_time})")
+    Logger.info(f"Multiple scripts finished. ({spend_time})")
 
 
 class Script:

@@ -1,11 +1,15 @@
 from functools import wraps, partial
 from pathlib import Path
-from typing import Any, NoReturn, Callable
+from typing import Any, TypeVar, ParamSpec, NoReturn, Callable
 from enum import IntEnum
 import threading
 import logging
 import sys
 import warnings
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
 
 COLORS = {
     "DEBUG": "\033[92m",  # Light Green
@@ -22,7 +26,6 @@ class LoggerType(IntEnum):
     FATAL = CRITICAL
     ERROR = logging.ERROR
     WARNING = logging.WARNING
-    WARN = WARNING
     INFO = logging.INFO
     DEBUG = logging.DEBUG
     NOTSET = logging.NOTSET
@@ -40,7 +43,7 @@ class Logger:
         _local = threading.local()
 
         @classmethod
-        def set(cls, id):
+        def set(cls, id: str | None):
             cls._local._id = id
 
         @classmethod
@@ -55,9 +58,46 @@ class Logger:
         def __init__(self, _id: str | None = None):
             self.__id = _id
 
-        def __call__(self, func):
+        def __call__(self, func: Callable[P, R]) -> Callable[P, R]:
             @wraps(func)
-            def wrapper(*args, **kwargs):
+            def wrapper(*args: P.args, **kwargs: P.kwargs):
+                self.set(self.__id)
+                result = func(*args, **kwargs)
+                self.reset()
+                return result
+
+            return wrapper
+
+    class ExtID(ID):
+        @classmethod
+        def set(cls, id: str | None):
+
+            if super().get() is None:
+                super().set(f"{id}")
+            else:
+                cls._local._id = id
+                super().set(f"{super().get()} | {id}")
+
+        @classmethod
+        def get(cls):
+            return getattr(cls._local, "_id", None)
+
+        @classmethod
+        def reset(cls):
+            current_id = super().get()
+            if current_id is not None:
+                parts = f"{current_id}".split(" | ")
+                if len(parts) > 1:
+                        super().set(" | ".join(parts[:-1]))
+                else:
+                    super().reset()
+
+        def __init__(self, _id: str | None = None):
+            self.__id = _id
+
+        def __call__(self, func: Callable[P, R]) -> Callable[P, R]:
+            @wraps(func)
+            def wrapper(*args: P.args, **kwargs: P.kwargs):
                 self.set(self.__id)
                 result = func(*args, **kwargs)
                 self.reset()
@@ -117,7 +157,7 @@ class Logger:
         return logging.getLogger().level
 
     @staticmethod
-    def _error(
+    def error(
         msg, *args, exc_info: Any = None, stack_info: bool = True, **kwargs
     ) -> NoReturn:
         """
@@ -139,7 +179,7 @@ class Logger:
                 raise RuntimeError(f"Logged error: {msg}")
 
     @staticmethod
-    def _exception(
+    def exception(
         msg, *args, exc_info: Any = None, stack_info: bool = True, **kwargs
     ) -> NoReturn:
         """
@@ -163,7 +203,7 @@ class Logger:
                 raise RuntimeError(f"Logged exception: {msg}")
 
     @staticmethod
-    def _warning(msg, *args, exc_info: Any = None, stack_info: bool = True, **kwargs):
+    def warning(msg, *args, exc_info: Any = None, stack_info: bool = True, **kwargs):
         """
         Log a message with severity 'WARNING' on the root logger. If the logger has
         no handlers, call basicConfig() to add a console handler with a pre-defined
@@ -181,10 +221,6 @@ class Logger:
 
     critical = logging.critical
     fatal = logging.fatal
-    error = _error
-    exception = _exception
-    warning = _warning
-    warn = logging.warn
     info = logging.info
     debug = logging.debug
 
@@ -200,8 +236,6 @@ class Logger:
                 _log = Logger.error
             case LoggerType.WARNING:
                 _log = Logger.warning
-            case LoggerType.WARN:
-                _log = Logger.warn
             case LoggerType.INFO:
                 _log = Logger.info
             case LoggerType.DEBUG:

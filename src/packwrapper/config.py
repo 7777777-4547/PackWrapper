@@ -1,6 +1,7 @@
 from enum import StrEnum
 from pydantic import BaseModel, Field, ValidationError
 from pathlib import Path
+import logging
 import json5
 import toml
 import json
@@ -41,6 +42,11 @@ class ConfigManager:
     @classmethod
     def suffix_with(cls, file_path_without_suffix: str | Path) -> Path:
 
+        if not isinstance(file_path_without_suffix, str | Path):
+            raise TypeError(
+                f"Expected str or Path, got {type(file_path_without_suffix).__name__}"
+            )
+
         file_path_without_suffix = Path(file_path_without_suffix)
 
         for suffix in ConfigManager.PROPERTIES_SUFFIX:
@@ -52,14 +58,30 @@ class ConfigManager:
                 return file_path
 
         else:
-            raise Exception(
-                f'Cannot find the properties file: "{file_path_without_suffix}"'
+            available_files = []
+            for suffix in ConfigManager.PROPERTIES_SUFFIX:
+                candidate = file_path_without_suffix.with_name(
+                    file_path_without_suffix.name + suffix
+                )
+                available_files.append(str(candidate))
+
+            raise FileNotFoundError(
+                f'Cannot find the properties file: "{file_path_without_suffix}". '
+                f"Expected one of: {', '.join(available_files)}"
             )
 
     @classmethod
-    def read_config(cls, file_path_without_suffix) -> dict:
+    def read_config(cls, file_path_without_suffix: str | Path) -> dict:
 
-        file_path = cls.suffix_with(file_path_without_suffix)
+        try:
+            file_path = cls.suffix_with(file_path_without_suffix)
+        except FileNotFoundError as e:
+            logging.error(str(e))
+            raise
+        except TypeError as e:
+            error_msg = f'Invalid path type: {str(e)}'
+            logging.error(error_msg)
+            raise TypeError(error_msg) from e
 
         file_suffix = Path(file_path).suffix
 
@@ -75,23 +97,38 @@ class ConfigManager:
 
     @classmethod
     def dump_config(cls, config: dict):
-        raw_output = toml.dumps(config)
-        split_output = raw_output.split("\n")
-        for line in split_output:
-            if len(line) == 0:
-                continue
-            yield line
+        try:
+            raw_output = toml.dumps(config)
+            split_output = raw_output.split("\n")
+            for line in split_output:
+                if len(line) == 0:
+                    continue
+                yield line
+
+        except TypeError as e:
+            error_msg = f'Cannot serialize config to TOML: contains unsupported data types. Details: {str(e)}'
+            logging.error(error_msg)
+            raise TypeError(error_msg) from e
+
+        except Exception as e:
+            error_msg = f'Unexpected error while dumping config: {type(e).__name__}: {str(e)}'
+            logging.exception(error_msg)
+            raise RuntimeError(error_msg) from e
 
     @classmethod
     def validate_config(cls, config: dict):
 
         try:
             PWConfig(**config)
+
         except ValidationError as e:
-            raise Exception(json.dumps(e.errors(), indent=4))
+            error_details = json.dumps(e.errors(), indent=4, ensure_ascii=False)
+            error_msg = f'Configuration validation failed:\n{error_details}'
+            logging.error(error_msg)
+            raise ValueError(error_msg) from e
 
     @classmethod
-    def json_load(cls, file_path) -> dict:
+    def json_load(cls, file_path: str | Path) -> dict:
 
         try:
             with open(file_path, "r", encoding="utf-8") as file:
@@ -99,11 +136,35 @@ class ConfigManager:
 
             return content
 
-        except Exception:
-            raise Exception(f'Cannot read the properties: "{file_path}"')
+        except FileNotFoundError:
+            error_msg = f'Properties file not found: "{file_path}"'
+            logging.error(error_msg)
+            raise FileNotFoundError(error_msg) from None
+
+        except PermissionError:
+            error_msg = f'Permission denied to read properties file: "{file_path}"'
+            logging.error(error_msg)
+            raise PermissionError(error_msg) from None
+
+        except json.JSONDecodeError as e:
+            error_msg = f'Invalid JSON format in "{file_path}": {e.msg}'
+            logging.error(error_msg)
+            raise ValueError(error_msg) from e
+
+        except UnicodeDecodeError:
+            error_msg = (
+                f'Encoding error reading "{file_path}": file must be UTF-8 encoded'
+            )
+            logging.error(error_msg)
+            raise ValueError(error_msg) from None
+
+        except Exception as e:
+            error_msg = f'Unexpected error reading properties file "{file_path}": {type(e).__name__}: {str(e)}'
+            logging.exception(error_msg)
+            raise RuntimeError(error_msg) from e
 
     @classmethod
-    def json5_load(cls, file_path) -> dict:
+    def json5_load(cls, file_path: str | Path) -> dict:
 
         try:
             with open(file_path, "r", encoding="utf-8") as file:
@@ -111,11 +172,28 @@ class ConfigManager:
 
             return dict(content)
 
-        except Exception:
-            raise Exception(f'Cannot read the properties: "{file_path}"')
+        except FileNotFoundError:
+            error_msg = f'Properties file not found: "{file_path}"'
+            logging.error(error_msg)
+            raise FileNotFoundError(error_msg) from None
+
+        except PermissionError:
+            error_msg = f'Permission denied to read properties file: "{file_path}"'
+            logging.error(error_msg)
+            raise PermissionError(error_msg) from None
+
+        except Exception as e:
+            if "JSONDecodeError" in type(e).__name__:
+                error_msg = f'Invalid JSON5 format in "{file_path}": {str(e)}'
+                logging.error(error_msg)
+                raise ValueError(error_msg) from e
+            else:
+                error_msg = f'Unexpected error reading properties file "{file_path}": {type(e).__name__}: {str(e)}'
+                logging.exception(error_msg)
+                raise RuntimeError(error_msg) from e
 
     @classmethod
-    def toml_load(cls, file_path) -> dict:
+    def toml_load(cls, file_path: str | Path) -> dict:
 
         try:
             with open(file_path, "r", encoding="utf-8") as file:
@@ -123,5 +201,29 @@ class ConfigManager:
 
             return content
 
-        except Exception:
-            raise Exception(f'Cannot read the properties: "{file_path}"')
+        except FileNotFoundError:
+            error_msg = f'Properties file not found: "{file_path}"'
+            logging.error(error_msg)
+            raise FileNotFoundError(error_msg) from None
+
+        except PermissionError:
+            error_msg = f'Permission denied to read properties file: "{file_path}"'
+            logging.error(error_msg)
+            raise PermissionError(error_msg) from None
+
+        except toml.TomlDecodeError as e:
+            error_msg = f'Invalid TOML format in "{file_path}": {str(e)}'
+            logging.error(error_msg)
+            raise ValueError(error_msg) from e
+
+        except UnicodeDecodeError:
+            error_msg = (
+                f'Encoding error reading "{file_path}": file must be UTF-8 encoded'
+            )
+            logging.error(error_msg)
+            raise ValueError(error_msg) from None
+
+        except Exception as e:
+            error_msg = f'Unexpected error reading properties file "{file_path}": {type(e).__name__}: {str(e)}'
+            logging.exception(error_msg)
+            raise RuntimeError(error_msg) from e

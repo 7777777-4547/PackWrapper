@@ -2,9 +2,12 @@ from .logger import Logger
 
 from functools import wraps
 from pathlib import Path
-from typing import Literal, TypeAlias, Callable, overload
+from typing import Literal, TypeVar, ParamSpec, TypeAlias, Callable, overload
 from enum import Enum, StrEnum
 import hashlib
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 class PathEnum(Enum):
@@ -88,7 +91,7 @@ class EntryPoint:
         BEFORE = "before"
 
     @classmethod
-    def join(cls, name: str, location: At, func: Callable, *args, **kwargs):
+    def join(cls, name: str, location: At, func: Callable[P,R], *args: P.args, **kwargs: P.kwargs):
 
         name_with_location = f"{name}_{location}" if location != cls.At.NONE else name
 
@@ -132,10 +135,10 @@ class EntryPoint:
         self.name = name
         self.location = location
 
-    def __call__(self, func: Callable):
+    def __call__(self, func: Callable[P, R]) -> Callable[P, R | None]:
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R | None:
             if self.type_ == "join":
                 if self.location is None:
                     EntryPoint.join(self.name, self.At.BEFORE, func, *args, **kwargs)
@@ -145,20 +148,13 @@ class EntryPoint:
             elif self.type_ == "create":
                 if self.location is not self.At.NONE:
                     EntryPoint.create(self.name, self.At.BEFORE)
-                    func(*args, **kwargs)
+                    result = func(*args, **kwargs)
                     EntryPoint.create(self.name, self.At.AFTER)
+                    return result
                 else:
                     EntryPoint.create(self.name, self.At.NONE)
+                    return func(*args, **kwargs)
             else:
                 raise ValueError(f"Invalid entry point type: '{self.type_}'")
 
         return wrapper
-
-
-class PackWrapperEntryPoint(StrEnum):
-    RP_EXPORT_BEFORE = "rp_export_before"
-    RP_EXPORT_COPY_BEFORE = "rp_export_copy_before"
-    RP_EXPORT_COPY_AFTER = "rp_export_copy_after"
-    RP_EXPORT_AFTER = "rp_export_after"
-    RP_PACKAGE_BEFORE = "rp_package_before"
-    RP_PACKAGE_AFTER = "rp_package_after"

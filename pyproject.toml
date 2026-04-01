@@ -20,7 +20,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["packwrapper*"]
-exclude = ["packwrapper.egg-info*"]
+include = ["packwrapper","packwrapperextensions"]
 
 [tool.setuptools_scm]
