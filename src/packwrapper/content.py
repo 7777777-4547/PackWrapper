@@ -87,7 +87,7 @@ class Content(ABC):
             include_custom (bool): whether to include custom files (included by `include_file`/`include_files`).
         """
         return (
-            {*self.files, *self.custom_files.keys()} if include_custom else self.files
+            {*self.files, *self.custom_files.keys()} if include_custom else self.files.copy()
         )
 
     def include_files(self, files: dict[Path, Path]):
@@ -499,7 +499,8 @@ class Resourcepack(Content):
         Logger.info(f'Packaged: "{self.package_file}"')
 
     def get_tex_files(self) -> Iterator[Path]:
-        for file in self.files:
+        files = list(self.files)
+        for file in files:
             if file.suffix.lower() != ".png":
                 continue
             yield file.absolute()
