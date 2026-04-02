@@ -1,3 +1,3 @@
-from .layerconvertor import PBRConvertor, TrimsConverter
+from .layerconvertor import PBRConvertor, TrimsConvertor
 
-__all__ = ["PBRConvertor", "TrimsConverter"]
+__all__ = ["PBRConvertor", "TrimsConvertor"]
