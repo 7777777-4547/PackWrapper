@@ -8,6 +8,7 @@ from packwrapper import Resourcepack
 from pathlib import Path
 from typing import Any, Iterable, Literal, cast
 from PIL import Image
+import fnmatch
 import re
 
 
@@ -20,7 +21,6 @@ class PBRConvertor(Plugin):
     specular_suffix = "_s"
 
     def __init__(self, rp: Resourcepack):
-        super().__init__()
         self.rp = rp
         self.source_dir = rp.get_source_dir()
         self.export_dir = rp.get_export_dir()
@@ -30,6 +30,7 @@ class PBRConvertor(Plugin):
         self.normal_files, self.specular_files, self.metadatas = (
             self.pbr_files_mapping()
         )
+        Logger.info("PBRConvertor initialized.")
 
     def pbr_files_mapping(self):
         normal_files: PBRFileMapping = {}
@@ -126,6 +127,7 @@ class PBRConvertor(Plugin):
 
     @plugin_logger
     def export(self):
+        Logger.info("Exporting PBR files...")
         for file_target, image in self.merge_channels():
             image.save(file_target)
 
@@ -146,7 +148,11 @@ class TrimsConvertor(Plugin):
     ]
 
     def __init__(
-        self, rp: Resourcepack, base_trim_palette: Path, trim_palettes: dict[str, Path]
+        self,
+        rp: Resourcepack,
+        base_trim_palette: Path,
+        trim_palettes: dict[str, Path],
+        ignore_files: set[str] = set(),
     ):
         self.rp = rp
         self.source_dir = rp.get_source_dir()
@@ -160,6 +166,11 @@ class TrimsConvertor(Plugin):
         )
 
         self.trims_files = self.get_trims_files()
+
+        self.ignore_files: list[re.Pattern[str]] = [
+            re.compile(fnmatch.translate(file)) for file in ignore_files
+        ]
+        Logger.info("TrimsConvertor initialized.")
 
     def __imgdata_trim_palettes_mapping(
         self, trim_palettes: dict[str, Path]
@@ -204,12 +215,6 @@ class TrimsConvertor(Plugin):
             imgdata_trims = trims.convert("RGBA").get_flattened_data()
 
             for material, mapping in self.imgdata_trim_palettes_mapping:
-                imgdata_remap_trims = [
-                    mapping.get(pixel, pixel) for pixel in imgdata_trims
-                ]
-                remap_trims = Image.new("RGBA", trims.size)
-                remap_trims.putdata(imgdata_remap_trims)
-
                 remap_trims_file_target = self.rp.relative_file(
                     trims_file.with_stem(
                         f"{trims_file.stem}_{material}{custom_suffix}"
@@ -217,10 +222,23 @@ class TrimsConvertor(Plugin):
                     self.source_dir,
                     self.rp.export_dir,
                 )
+                if any(
+                    pattern.search(remap_trims_file_target.absolute().as_posix())
+                    for pattern in self.ignore_files
+                ):
+                    continue
+
+                imgdata_remap_trims = [
+                    mapping.get(pixel, pixel) for pixel in imgdata_trims
+                ]
+                remap_trims = Image.new("RGBA", trims.size)
+                remap_trims.putdata(imgdata_remap_trims)
 
                 yield remap_trims_file_target, remap_trims
 
+    @plugin_logger
     def export(self):
+        Logger.info("Exporting Trims files...")
         for file_target, image in self.remap_trims():
             image.save(file_target)
 

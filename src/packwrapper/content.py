@@ -475,18 +475,19 @@ class Resourcepack(Content):
         """
         Run the resourcepack.
         """
+        Logger.info(f'Starting the build of the resourcepack: "{self.package_name}"')
         self.init_plugins()
-        Logger.info(f'Starting export: "{self.package_name}"')
+        Logger.info('Exporting...')
         self.export_clean()
         self.export_copy()
         self.export_dump_mcmeta()
-        Logger.info(f'Finished exporting: "{self.export_dir}"')
+        Logger.info(f'Exported: "{self.export_dir}"')
         Logger.info("Packaging...")
         Logger.debug(f'The package path: "{self.package_file}"')
         if self.optimization:
             Logger.info("Optimization is enabled.")
         self.package()
-        Logger.info(f'Finished packaging: "{self.package_file}"')
+        Logger.info(f'Packaged: "{self.package_file}"')
 
     def get_tex_files(self) -> Iterator[Path]:
         for file in self.files:
