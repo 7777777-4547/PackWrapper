@@ -134,7 +134,7 @@ class PBRConvertor(Plugin):
         EntryPoint.join(ContentEntryPoint.EXPORT_COPY, EntryPoint.At.AFTER, self.export)
 
 
-class TrimsConverter(Plugin):
+class TrimsConvertor(Plugin):
     trims_path_patterns = [
         re.compile(
             r"^(?:"
