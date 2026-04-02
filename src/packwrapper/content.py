@@ -453,19 +453,28 @@ class Resourcepack(Content):
                             zipf.write(file, relative_file)
                         else:
                             _buffer = BytesIO()
-
-                            image = Image.open(file).convert("RGBA")
-                            image_dpi = image.info.get("dpi", (72, 72))
-                            image_colors_len = len(Counter(image.get_flattened_data()))
-
-                            if image_colors_len <= 256:
-                                image = image.convert(
-                                    "P",
-                                    palette=Image.Palette.ADAPTIVE,
-                                    colors=image_colors_len,
+                            image = None
+                            try:
+                                image = Image.open(file).convert("RGBA")
+                                image_dpi = image.info.get("dpi", (72, 72))
+                                image_colors_len = len(
+                                    Counter(image.get_flattened_data())
                                 )
-                            image.save(_buffer, "PNG", dpi=image_dpi)
-                            zipf.writestr(relative_file.as_posix(), _buffer.getvalue())
+
+                                if image_colors_len <= 256:
+                                    image = image.convert(
+                                        "P",
+                                        palette=Image.Palette.ADAPTIVE,
+                                        colors=image_colors_len,
+                                    )
+                                image.save(_buffer, "PNG", dpi=image_dpi)
+                                zipf.writestr(
+                                    relative_file.as_posix(), _buffer.getvalue()
+                                )
+                            finally:
+                                if image is not None:
+                                    image.close()
+                                _buffer.close()
 
         except Exception:
             Logger.debug(f"{self.package_file}")
@@ -477,7 +486,7 @@ class Resourcepack(Content):
         """
         Logger.info(f'Starting the build of the resourcepack: "{self.package_name}"')
         self.init_plugins()
-        Logger.info('Exporting...')
+        Logger.info("Exporting...")
         self.export_clean()
         self.export_copy()
         self.export_dump_mcmeta()

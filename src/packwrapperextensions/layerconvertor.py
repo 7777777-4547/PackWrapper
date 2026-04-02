@@ -7,7 +7,7 @@ from packwrapper import Resourcepack
 
 from pathlib import Path
 from typing import Any, Iterable, Literal, cast
-from PIL import Image
+from PIL import Image, ImageFile
 import fnmatch
 import re
 
@@ -63,8 +63,12 @@ class PBRConvertor(Plugin):
             )
 
             if stem[-3] == "n":
+                if file_target not in normal_files:
+                    normal_files[file_target] = {"animated": is_animated}
                 normal_files[file_target].update(channel_file)
             else:
+                if file_target not in specular_files:
+                    specular_files[file_target] = {"animated": is_animated}
                 specular_files[file_target].update(channel_file)
 
             self.rp.exclude_file(file)
@@ -82,7 +86,7 @@ class PBRConvertor(Plugin):
 
     @staticmethod
     def images_size_compare(
-        images: list[Image.Image] | list[Image.ImageFile.ImageFile],
+        images: list[Image.Image] | list[ImageFile.ImageFile],
     ) -> bool:
         if all(image.size == images[0].size for image in images):
             return True
@@ -130,6 +134,7 @@ class PBRConvertor(Plugin):
         Logger.info("Exporting PBR files...")
         for file_target, image in self.merge_channels():
             image.save(file_target)
+            image.close()
 
     def __call__(self):
         super().__call__()
@@ -241,6 +246,7 @@ class TrimsConvertor(Plugin):
         Logger.info("Exporting Trims files...")
         for file_target, image in self.remap_trims():
             image.save(file_target)
+            image.close()
 
     def __call__(self):
         super().__call__()
