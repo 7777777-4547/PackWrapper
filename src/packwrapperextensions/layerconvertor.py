@@ -21,6 +21,7 @@ class PBRConvertor(Plugin):
     specular_suffix = "_s"
 
     def __init__(self, rp: Resourcepack):
+        super().__init__()
         self.rp = rp
         self.source_dir = rp.get_source_dir()
         self.export_dir = rp.get_export_dir()
@@ -159,6 +160,7 @@ class TrimsConvertor(Plugin):
         trim_palettes: dict[str, Path],
         ignore_files: set[str] = set(),
     ):
+        super().__init__()
         self.rp = rp
         self.source_dir = rp.get_source_dir()
         self.rp_tex_files = rp.get_tex_files()
