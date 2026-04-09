@@ -5,8 +5,9 @@ from packwrapper.plugin import Plugin, plugin_logger
 from packwrapper.utils import EntryPoint
 from packwrapper import Resourcepack
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Iterable, Literal, cast
+from typing import Any, Iterable, Literal, Union, cast
 from PIL import Image, ImageFile
 import fnmatch
 import re
@@ -16,6 +17,7 @@ PBRChannelMetadata = dict[Literal["r", "g", "b", "a", "animated"], Path | bool]
 PBRFileMapping = dict[Path, PBRChannelMetadata]
 
 
+@plugin_logger()
 class PBRConvertor(Plugin):
     normal_suffix = "_n"
     specular_suffix = "_s"
@@ -26,9 +28,8 @@ class PBRConvertor(Plugin):
         self.source_dir = rp.get_source_dir()
         self.export_dir = rp.get_export_dir()
         self.rp_files = rp.get_files()
-        self.rp_tex_files_mapping = rp.get_tex_files_mapping()
 
-        self.normal_files, self.specular_files, self.metadatas = (
+        self.normal_files, self.specular_files, self.metadatas, self.original_files = (
             self.pbr_files_mapping()
         )
         Logger.info("PBRConvertor initialized.")
@@ -37,13 +38,16 @@ class PBRConvertor(Plugin):
         normal_files: PBRFileMapping = {}
         specular_files: PBRFileMapping = {}
         metadatas: dict[Path, dict[str, Any]] = {}
+        original_files: set[Path] = set()
 
-        for file, metadata in self.rp_tex_files_mapping:
+        for file, metadata in self.rp.get_tex_files_mapping():
             stem = file.stem
             suffix = file.suffix
             if (
                 len(stem) >= 4
+                and stem[-4] == "_"
                 and stem[-3] in ("n", "s")
+                and stem[-2] == "_"
                 and stem[-1] in ("r", "g", "b", "a")
             ) is False:
                 continue
@@ -72,7 +76,7 @@ class PBRConvertor(Plugin):
                     specular_files[file_target] = {"animated": is_animated}
                 specular_files[file_target].update(channel_file)
 
-            self.rp.exclude_file(file)
+            original_files.add(file)
             channel_file_mcmeta = metadata.get("mcmeta", None)
             if channel_file_mcmeta:
                 self.rp.exclude_file(channel_file_mcmeta)
@@ -83,12 +87,14 @@ class PBRConvertor(Plugin):
                     channel_file_mcmeta
                 )
 
-        return normal_files, specular_files, metadatas
+        return normal_files, specular_files, metadatas, original_files
 
     @staticmethod
     def images_size_compare(
         images: list[Image.Image] | list[ImageFile.ImageFile],
     ) -> bool:
+        if not images:
+            return True
         if all(image.size == images[0].size for image in images):
             return True
         else:
@@ -103,45 +109,64 @@ class PBRConvertor(Plugin):
         }.items():
             existing_channels: set[str] = set()
             existing_channel_images: dict[str, Image.Image] = {}
-            for k, v in mapping_data.items():
-                if not isinstance(v, bool):
-                    existing_channels.add(k)
-                    existing_channel_images[k] = Image.open(v)
+            opened_images: list[ImageFile.ImageFile] = []
 
-            if not self.images_size_compare(list(existing_channel_images.values())):
-                Logger.error(f"{file_target} is not a valid PBR file")
+            try:
+                for k, v in mapping_data.items():
+                    if not isinstance(v, bool):
+                        existing_channels.add(k)
+                        _image = Image.open(v)
+                        opened_images.append(_image)
+                        existing_channel_images[k] = _image
 
-            base_size = list(existing_channel_images.values())[0].size
-            channels = [
-                *[Image.new("L", base_size) for _ in range(3)],
-                Image.new("L", base_size, 255),
-            ]
+                if not existing_channel_images:
+                    Logger.warning(f"No valid channels found for {file_target}")
+                    continue
 
-            for existing_channel, image in existing_channel_images.items():
-                index = channel_mapping[existing_channel]
+                if not self.images_size_compare(list(existing_channel_images.values())):
+                    Logger.error(f"{file_target} is not a valid PBR file")
 
-                _image = (
-                    image.convert("RGBA").split()[index]
-                    if index != 3 and image.mode != "L"
-                    else image.convert("L")
-                )
-                channels[index] = _image
+                base_size = list(existing_channel_images.values())[0].size
+                channels = [
+                    *[Image.new("L", base_size) for _ in range(3)],
+                    Image.new("L", base_size, 255),
+                ]
 
-            image_new = Image.merge("RGBA", channels)
-            yield file_target, image_new
+                for existing_channel, image in existing_channel_images.items():
+                    index = channel_mapping[existing_channel]
 
-    @plugin_logger
+                    _image = (
+                        image.convert("RGBA").split()[index]
+                        if index != 3 and image.mode != "L"
+                        else image.convert("L")
+                    )
+                    channels[index] = _image
+
+                image_new = Image.merge("RGBA", channels)
+                yield file_target, image_new
+            finally:
+                for image in opened_images:
+                    try:
+                        image.close()
+                    except Exception:
+                        pass
+
     def export(self):
         Logger.info("Exporting PBR files...")
         for file_target, image in self.merge_channels():
-            image.save(file_target)
-            image.close()
+            try:
+                image.save(file_target)
+            except Exception as e:
+                Logger.error(f"Failed to save {file_target}: {e}")
+            finally:
+                image.close()
 
     def __call__(self):
-        super().__call__()
+        self.rp.exclude_files(self.original_files)
         EntryPoint.join(ContentEntryPoint.EXPORT_COPY, EntryPoint.At.AFTER, self.export)
 
 
+@plugin_logger()
 class TrimsConvertor(Plugin):
     trims_path_patterns = [
         re.compile(
@@ -159,43 +184,60 @@ class TrimsConvertor(Plugin):
         base_trim_palette: Path,
         trim_palettes: dict[str, Path],
         ignore_files: set[str] = set(),
+        custom_suffix: str = "",
     ):
         super().__init__()
         self.rp = rp
         self.source_dir = rp.get_source_dir()
-        self.rp_tex_files = rp.get_tex_files()
+        self.rp_tex_files = set(rp.get_tex_files())
 
-        self.imgdata_base_trim_palette = Image.open(
-            base_trim_palette
-        ).get_flattened_data()
-        self.imgdata_trim_palettes_mapping = self.__imgdata_trim_palettes_mapping(
-            trim_palettes
+        self.imgdata_base_trim_palette = (
+            Image.open(base_trim_palette).convert("RGBA").get_flattened_data()
         )
+        self.trim_palettes = trim_palettes
 
-        self.trims_files = self.get_trims_files()
-
-        self.ignore_files: list[re.Pattern[str]] = [
-            re.compile(fnmatch.translate(file)) for file in ignore_files
-        ]
+        self.ignore_patterns: list[tuple[str, Union[str, re.Pattern[str]]]] = []
+        for pattern in ignore_files:
+            if "**" in pattern:
+                regex_pattern = pattern.replace(".", r"\.").replace("*", ".*")
+                self.ignore_patterns.append(("regex", re.compile(regex_pattern)))
+            else:
+                self.ignore_patterns.append(("glob", pattern))
+        self.custom_suffix = custom_suffix
         Logger.info("TrimsConvertor initialized.")
 
-    def __imgdata_trim_palettes_mapping(
-        self, trim_palettes: dict[str, Path]
-    ) -> Iterable[tuple[str, dict[float | tuple[int, ...], float | tuple[int, ...]]]]:
-
-        for material, file in zip(
-            trim_palettes.keys(), self.rp.get_textures(list(trim_palettes.values()))
+    def imgdata_trim_palettes_mapping(
+        self,
+    ) -> Iterable[tuple[str, list[int]]]:
+        for material, image in zip(
+            self.trim_palettes.keys(),
+            self.rp.get_textures(list(self.trim_palettes.values())),
         ):
-            yield (
-                material,
-                {
-                    pixel_base: pixel
-                    for pixel_base, pixel in zip(
-                        self.imgdata_base_trim_palette,
-                        file.convert("RGBA").get_flattened_data(),
-                    )
-                },
-            )
+            lut = list(range(256)) * 4
+            for base_pixel, target_pixel in zip(
+                self.imgdata_base_trim_palette,
+                image.convert("RGBA").get_flattened_data(),
+            ):
+                for i in range(4):
+                    lut[cast(tuple, base_pixel)[i] + i * 256] = cast(
+                        tuple, target_pixel
+                    )[i]
+
+            yield (material, lut)
+
+    def is_ignored(self, remap_trims_file_target: Path) -> bool:
+        remap_trims_file_target_str = remap_trims_file_target.as_posix()
+        should_ignore = False
+        for pattern_type, pattern in self.ignore_patterns:
+            if pattern_type == "glob":
+                if fnmatch.fnmatch(remap_trims_file_target_str, cast(str, pattern)):
+                    should_ignore = True
+                    break
+            elif pattern_type == "regex":
+                if cast(re.Pattern[str], pattern).search(remap_trims_file_target_str):
+                    should_ignore = True
+                    break
+        return should_ignore
 
     def get_trims_files(self) -> Iterable[Path]:
         for file in self.rp_tex_files:
@@ -214,42 +256,58 @@ class TrimsConvertor(Plugin):
             if any(pattern.match(path_str) for pattern in self.trims_path_patterns):
                 yield file
 
-    def remap_trims(
-        self, custom_suffix: str = ""
-    ) -> Iterable[tuple[Path, Image.Image]]:
-        for trims_file in self.trims_files:
-            trims = Image.open(trims_file)
-            imgdata_trims = trims.convert("RGBA").get_flattened_data()
+    def remap_trims(self) -> Iterable[tuple[Path, Image.Image]]:
+        for trims_file in self.get_trims_files():
+            trims = None
+            try:
+                trims = Image.open(trims_file).convert("RGBA")
 
-            for material, mapping in self.imgdata_trim_palettes_mapping:
-                remap_trims_file_target = self.rp.relative_file(
-                    trims_file.with_stem(
-                        f"{trims_file.stem}_{material}{custom_suffix}"
-                    ),
-                    self.source_dir,
-                    self.rp.export_dir,
-                )
-                if any(
-                    pattern.search(remap_trims_file_target.absolute().as_posix())
-                    for pattern in self.ignore_files
-                ):
-                    continue
+                for material, lut in self.imgdata_trim_palettes_mapping():
+                    remap_trims_file_target = self.rp.relative_file(
+                        trims_file.with_stem(
+                            f"{trims_file.stem}_{material}{self.custom_suffix}"
+                        ),
+                        self.source_dir,
+                        self.rp.export_dir,
+                    )
 
-                imgdata_remap_trims = [
-                    mapping.get(pixel, pixel) for pixel in imgdata_trims
-                ]
-                remap_trims = Image.new("RGBA", trims.size)
-                remap_trims.putdata(imgdata_remap_trims)
+                    if self.is_ignored(remap_trims_file_target):
+                        continue
 
-                yield remap_trims_file_target, remap_trims
+                    remapped_trims = trims.point(lut)
 
-    @plugin_logger
+                    yield remap_trims_file_target, remapped_trims
+
+            except Exception as e:
+                Logger.error(f"Error processing {trims_file}: {e}")
+                continue
+            finally:
+                if trims:
+                    try:
+                        trims.close()
+                    except Exception:
+                        pass
+
     def export(self):
+
+        def save_image(file_target: Path, image: Image.Image):
+            try:
+                file_target.parent.mkdir(parents=True, exist_ok=True)
+                image.save(file_target)
+            except Exception as e:
+                Logger.error(f"Failed to save {file_target}: {e}")
+            finally:
+                image.close()
+
         Logger.info("Exporting Trims files...")
-        for file_target, image in self.remap_trims():
-            image.save(file_target)
-            image.close()
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(save_image, file_target, image)
+                for file_target, image in self.remap_trims()
+            ]
+            for future in as_completed(futures):
+                future.result()
 
     def __call__(self):
-        super().__call__()
+        self.rp.exclude_files(set(self.get_trims_files()))
         EntryPoint.join(ContentEntryPoint.EXPORT_COPY, EntryPoint.At.AFTER, self.export)

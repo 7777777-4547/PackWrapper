@@ -3,7 +3,7 @@ from .logger import Logger
 from .plugin import Plugin
 from .utils import PackWrapperPath, EntryPoint
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterator, Literal, overload
@@ -87,7 +87,9 @@ class Content(ABC):
             include_custom (bool): whether to include custom files (included by `include_file`/`include_files`).
         """
         return (
-            {*self.files, *self.custom_files.keys()} if include_custom else self.files.copy()
+            {*self.files, *self.custom_files.keys()}
+            if include_custom
+            else self.files.copy()
         )
 
     def include_files(self, files: dict[Path, Path]):
@@ -120,7 +122,7 @@ class Content(ABC):
             }
         )
 
-    def exclude_files(self, files: list[Path]):
+    def exclude_files(self, files: list[Path] | set[Path]):
         """
         Exclude files from the content's export directory (relative to the content's source/export directory).
         Args:
@@ -213,11 +215,8 @@ class Content(ABC):
         """
         Copy the content's files to the export directory.
         """
-        self.dest_files: set[Path] = set()
-        for file, dest_file in {
-            **self.relative_files(self.files, self.source_dir, self.export_dir),
-            **self.custom_files,
-        }.items():
+
+        def _copy2(file, dest_file):
             try:
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(file, dest_file)
@@ -225,6 +224,17 @@ class Content(ABC):
                 Logger.exception(
                     f'Cannot copy the file: "{file}" to "{dest_file}"', exc_info=e
                 )
+
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(_copy2, file, dest_file)
+                for file, dest_file in {
+                    **self.relative_files(self.files, self.source_dir, self.export_dir),
+                    **self.custom_files,
+                }.items()
+            ]
+            for future in as_completed(futures):
+                future.result()
 
     @EntryPoint(
         "create",
@@ -314,7 +324,7 @@ class Resourcepack(Content):
         license: Path | None = None,
         extra_mcmeta: dict | None = None,
         package_name: str | None = None,
-        opimization: bool = True,
+        optimization: bool = True,
         compresslevel: int = 5,
         **extra_properties,
     ):
@@ -326,7 +336,7 @@ class Resourcepack(Content):
             compresslevel,
             **extra_properties,
         )
-        self.optimization = opimization
+        self.optimization = optimization
 
         self.description = self.template_substitute(description, **self.properties)
         self.verfmt = verfmt
@@ -414,6 +424,27 @@ class Resourcepack(Content):
                     f'The mode "{mode}" is not supported!', exc_info=ValueError
                 )
 
+    def _image_optimize(self, image: Image.Image):
+        _buffer = BytesIO()
+        try:
+            image_dpi = image.info.get("dpi", (72, 72))
+            image_colors_len = len(Counter(image.get_flattened_data()))
+
+            if image_colors_len <= 256:
+                image = image.convert(
+                    "P",
+                    palette=Image.Palette.ADAPTIVE,
+                    colors=image_colors_len,
+                )
+            image.save(_buffer, "PNG", dpi=image_dpi, optimize=True)
+
+            return _buffer.getvalue()
+
+        finally:
+            if image is not None:
+                image.close()
+            _buffer.close()
+
     def __enter__(self):
         return super().__enter__()
 
@@ -446,35 +477,19 @@ class Resourcepack(Content):
                 compresslevel=self.compresslevel,
             ) as zipf:
                 for file in (self.export_dir).rglob("*"):
-                    if file.is_file():
-                        relative_file = file.relative_to(self.export_dir)
 
-                        if file.suffix.lower() != ".png" or not self.optimization:
-                            zipf.write(file, relative_file)
-                        else:
-                            _buffer = BytesIO()
-                            image = None
-                            try:
-                                image = Image.open(file).convert("RGBA")
-                                image_dpi = image.info.get("dpi", (72, 72))
-                                image_colors_len = len(
-                                    Counter(image.get_flattened_data())
-                                )
+                    if not file.is_file():
+                        continue
 
-                                if image_colors_len <= 256:
-                                    image = image.convert(
-                                        "P",
-                                        palette=Image.Palette.ADAPTIVE,
-                                        colors=image_colors_len,
-                                    )
-                                image.save(_buffer, "PNG", dpi=image_dpi)
-                                zipf.writestr(
-                                    relative_file.as_posix(), _buffer.getvalue()
-                                )
-                            finally:
-                                if image is not None:
-                                    image.close()
-                                _buffer.close()
+                    relative_file = file.relative_to(self.export_dir)
+
+                    if file.suffix.lower() != ".png" or not self.optimization:
+                        zipf.write(file, relative_file)
+                    else:
+                        image = Image.open(file).convert("RGBA")
+                        zipf.writestr(
+                            relative_file.as_posix(), self._image_optimize(image)
+                        )
 
         except Exception:
             Logger.debug(f"{self.package_file}")

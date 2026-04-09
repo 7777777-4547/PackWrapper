@@ -75,12 +75,12 @@ class Logger:
             if super().get() is None:
                 super().set(f"{id}")
             else:
-                cls._local._id = id
+                cls._local._ext_id = id
                 super().set(f"{super().get()} | {id}")
 
         @classmethod
         def get(cls):
-            return getattr(cls._local, "_id", None)
+            return getattr(cls._local, "_ext_id", None)
 
         @classmethod
         def reset(cls):
@@ -90,7 +90,7 @@ class Logger:
                 if len(parts) > 1:
                         super().set(" | ".join(parts[:-1]))
                 else:
-                    super().reset()
+                    cls._local._ext_id = None
 
         def __init__(self, _id: str | None = None):
             self.__id = _id
