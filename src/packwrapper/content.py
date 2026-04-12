@@ -6,7 +6,7 @@ from .utils import PackWrapperPath, EntryPoint
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from pathlib import Path
-from typing import Any, Iterator, Literal, overload
+from typing import Iterable, Iterator, Literal, overload
 from string import Template
 from enum import StrEnum
 from abc import ABC, abstractmethod
@@ -225,7 +225,7 @@ class Content(ABC):
                     f'Cannot copy the file: "{file}" to "{dest_file}"', exc_info=e
                 )
 
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             futures = [
                 executor.submit(_copy2, file, dest_file)
                 for file, dest_file in {
@@ -445,6 +445,15 @@ class Resourcepack(Content):
                 image.close()
             _buffer.close()
 
+    def _image_file_optimize(self, file: Path):
+        image = None
+        try:
+            image = Image.open(file).convert("RGBA")
+            return file, self._image_optimize(image)
+        finally:
+            if image is not None:
+                image.close()
+
     def __enter__(self):
         return super().__enter__()
 
@@ -469,6 +478,20 @@ class Resourcepack(Content):
         """
         Package the content.
         """
+
+        def optimize_images(
+            image_files: Iterable[Path],
+        ) -> Iterable[tuple[Path, bytes]]:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [
+                    executor.submit(self._image_file_optimize, file)
+                    for file in image_files
+                ]
+
+                for future in as_completed(futures):
+                    file, image = future.result()
+                    yield file, image
+
         try:
             with zipfile.ZipFile(
                 self.package_file,
@@ -476,8 +499,8 @@ class Resourcepack(Content):
                 zipfile.ZIP_DEFLATED,
                 compresslevel=self.compresslevel,
             ) as zipf:
+                image_files: set[Path] = set()
                 for file in (self.export_dir).rglob("*"):
-
                     if not file.is_file():
                         continue
 
@@ -486,10 +509,12 @@ class Resourcepack(Content):
                     if file.suffix.lower() != ".png" or not self.optimization:
                         zipf.write(file, relative_file)
                     else:
-                        image = Image.open(file).convert("RGBA")
-                        zipf.writestr(
-                            relative_file.as_posix(), self._image_optimize(image)
-                        )
+                        image_files.add(file)
+
+                if image_files and self.optimization:
+                    for file, image in optimize_images(image_files):
+                        relative_file = file.relative_to(self.export_dir)
+                        zipf.writestr(relative_file.as_posix(), image)
 
         except Exception:
             Logger.debug(f"{self.package_file}")
@@ -520,7 +545,9 @@ class Resourcepack(Content):
                 continue
             yield file.absolute()
 
-    def get_tex_files_mapping(self) -> Iterator[tuple[Path, dict[str, Any]]]:
+    def get_tex_files_mapping(
+        self,
+    ) -> Iterator[tuple[Path, dict[str, Path | bool | None]]]:
         for file in self.get_tex_files():
             _file_mcmeta = (file.parent / f"{file.name}.mcmeta").absolute()
             file_mcmeta = _file_mcmeta if _file_mcmeta in self.files else None

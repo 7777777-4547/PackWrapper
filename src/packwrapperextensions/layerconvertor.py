@@ -8,13 +8,19 @@ from packwrapper import Resourcepack
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Iterable, Literal, Union, cast
+from enum import StrEnum
 from PIL import Image, ImageFile
 import fnmatch
+import json
 import re
 
 
 PBRChannelMetadata = dict[Literal["r", "g", "b", "a", "animated"], Path | bool]
 PBRFileMapping = dict[Path, PBRChannelMetadata]
+
+
+class PBRConvertorEntryPoint(StrEnum):
+    EXPORT = "plugin_export_pbr"
 
 
 @plugin_logger()
@@ -78,7 +84,7 @@ class PBRConvertor(Plugin):
 
             original_files.add(file)
             channel_file_mcmeta = metadata.get("mcmeta", None)
-            if channel_file_mcmeta:
+            if isinstance(channel_file_mcmeta, Path):
                 self.rp.exclude_file(channel_file_mcmeta)
                 file_mcmeta_target = self.rp.relative_file(
                     _file_mcmeta, self.source_dir, self.export_dir
@@ -135,11 +141,21 @@ class PBRConvertor(Plugin):
                 for existing_channel, image in existing_channel_images.items():
                     index = channel_mapping[existing_channel]
 
-                    _image = (
-                        image.convert("RGBA").split()[index]
-                        if index != 3 and image.mode != "L"
-                        else image.convert("L")
-                    )
+                    if index != 3:
+                        _image = image.convert("RGBA").split()[index]
+                    elif image.mode == "RGBA":
+                        alpha = image.split()[3]
+                        gray = image.convert("L")
+                        mask_lut = [0] * 256
+                        for i in range(1, 256):
+                            mask_lut[i] = 255
+                        mask = alpha.point(mask_lut)
+                        _image = Image.composite(
+                            gray, Image.new("L", image.size, 0), mask
+                        )
+                    else:
+                        _image = image.convert("L")
+
                     channels[index] = _image
 
                 image_new = Image.merge("RGBA", channels)
@@ -151,9 +167,9 @@ class PBRConvertor(Plugin):
                     except Exception:
                         pass
 
+    @EntryPoint("create", PBRConvertorEntryPoint.EXPORT)
     def export(self):
-        Logger.info("Exporting PBR files...")
-        for file_target, image in self.merge_channels():
+        def save_image(file_target: Path, image: Image.Image):
             try:
                 image.save(file_target)
             except Exception as e:
@@ -161,9 +177,37 @@ class PBRConvertor(Plugin):
             finally:
                 image.close()
 
+        def save_mcmeta(file_target: Path, mcmetadata: dict):
+            try:
+                file_target.parent.mkdir(parents=True, exist_ok=True)
+                with open(file_target, "w", encoding="utf-8") as f:
+                    json.dump(mcmetadata, f, indent=4, ensure_ascii=False)
+                    f.write("\n")
+            except Exception as e:
+                Logger.error(f"Failed to write metadata to {file_target}: {e}")
+
+        Logger.info("Exporting PBR files...")
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                *[
+                    executor.submit(save_image, file_target, image)
+                    for file_target, image in self.merge_channels()
+                ],
+                *[
+                    executor.submit(save_mcmeta, file_target, mcmetadata)
+                    for file_target, mcmetadata in self.metadatas.items()
+                ],
+            ]
+            for future in as_completed(futures):
+                future.result()
+
     def __call__(self):
         self.rp.exclude_files(self.original_files)
         EntryPoint.join(ContentEntryPoint.EXPORT_COPY, EntryPoint.At.AFTER, self.export)
+
+
+class TrimsConvertorEntryPoint(StrEnum):
+    EXPORT = "plugin_export_trims"
 
 
 @plugin_logger()
@@ -288,6 +332,7 @@ class TrimsConvertor(Plugin):
                     except Exception:
                         pass
 
+    @EntryPoint("create", TrimsConvertorEntryPoint.EXPORT)
     def export(self):
 
         def save_image(file_target: Path, image: Image.Image):
