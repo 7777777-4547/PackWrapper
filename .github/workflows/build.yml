@@ -12,26 +12,26 @@ jobs:
 
     steps:
       - name: Checkout Git Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Get Time
         run: |
           CURRENT_DATE=$(date +%Y%m%d%H%M%S)
-          echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
-      - name: Setup python 3.13
-        uses: actions/setup-python@v5
+          echo "current_date=$CURRENT_DATE" >> $GITHUB_OUTPUT
+      - name: Setup python 3.14t
+        uses: actions/setup-python@v6
         with:
-            python-version: 3.13
+            python-version: 3.14t
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Build Artifacts
         run: uv build
       - name: Release Artifacts
-        uses: marvinpinto/action-automatic-releases@latest
+        uses: softprops/action-gh-release@v2
         with:
-            title: "PackWrapper N${{ env.CURRENT_DATE }}"
-            automatic_release_tag: "nightly"
-            repo_token: "${{ secrets.GITHUB_TOKEN }}"
+            name: "PackWrapper N${{ steps.get_time.outputs.current_date }}"
+            tag_name: "nightly"
+            token: "${{ secrets.GITHUB_TOKEN }}"
             files: "dist/*"
             prerelease: true
