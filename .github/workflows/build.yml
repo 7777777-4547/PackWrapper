@@ -9,7 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout Git Repository
         uses: actions/checkout@v5
@@ -34,7 +35,10 @@ jobs:
             name: "PackWrapper N${{ steps.get_time.outputs.current_date }}"
             tag_name: "nightly"
             token: "${{ secrets.GITHUB_TOKEN }}"
-            files: "dist/*"
+            working_directory: dist
+            files: |
+              *.whl
+              *.tar.gz
             prerelease: true
             overwrite_files: true
             generate_release_notes: true
