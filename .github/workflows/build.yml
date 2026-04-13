@@ -9,8 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout Git Repository
         uses: actions/checkout@v5
@@ -29,25 +27,11 @@ jobs:
         uses: astral-sh/setup-uv@v7
       - name: Build Artifacts
         run: uv build
-      - name: Delete old nightly tag & Create new nightly tag
-        run: |
-          git fetch --tags
-          if git rev-parse "nightly" >/dev/null 2>&1; then
-            git tag -d nightly
-            git push --delete origin nightly || true
-          fi
-          git tag -f nightly
-          git push origin nightly --force
       - name: Release Artifacts
-        uses: softprops/action-gh-release@v3
+        uses: marvinpinto/action-automatic-releases@latest
         with:
-            name: "PackWrapper N${{ steps.get_time.outputs.current_date }}"
-            tag_name: "nightly"
-            token: "${{ secrets.GITHUB_TOKEN }}"
-            working_directory: dist
-            files: |
-              *.whl
-              *.tar.gz
+            title: "PackWrapper N${{ steps.get_time.outputs.current_date }}"
+            automatic_release_tag: "nightly"
+            repo_token: "${{ secrets.GITHUB_TOKEN }}"
+            files: "dist/*"
             prerelease: true
-            overwrite_files: true
-            generate_release_notes: true
