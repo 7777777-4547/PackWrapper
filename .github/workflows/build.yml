@@ -36,3 +36,5 @@ jobs:
             token: "${{ secrets.GITHUB_TOKEN }}"
             files: "dist/*"
             prerelease: true
+            overwrite_files: true
+            generate_release_notes: true
