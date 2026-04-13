@@ -16,6 +16,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Get Time
+        id: get_time
         run: |
           CURRENT_DATE=$(date +%Y%m%d%H%M%S)
           echo "current_date=$CURRENT_DATE" >> $GITHUB_OUTPUT
