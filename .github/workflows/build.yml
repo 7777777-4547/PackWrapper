@@ -29,6 +29,15 @@ jobs:
         uses: astral-sh/setup-uv@v7
       - name: Build Artifacts
         run: uv build
+      - name: Delete old nightly tag & Create new nightly tag
+        run: |
+          git fetch --tags
+          if git rev-parse "nightly" >/dev/null 2>&1; then
+            git tag -d nightly
+            git push --delete origin nightly || true
+          fi
+          git tag -f nightly
+          git push origin nightly --force
       - name: Release Artifacts
         uses: softprops/action-gh-release@v3
         with:
